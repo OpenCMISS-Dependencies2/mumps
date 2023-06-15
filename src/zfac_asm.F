@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -15,7 +15,7 @@ C
      &    ISON, NBROWS, NBCOLS, ROWLIST,
      &    VALSON, PTLUST_S, PTRAST, STEP, PIMASTER,
      &    OPASSW, IWPOSCB, MYID, KEEP,KEEP8, IS_ofType5or6,
-     &    LDA_VALSON )
+     &    LDA_VALSON, ICOL_BEG )
       USE ZMUMPS_LOAD
       IMPLICIT NONE
       INTEGER KEEP(500)
@@ -30,14 +30,14 @@ C
       COMPLEX(kind=8) A(LA), VALSON(LDA_VALSON,NBROWS)
       DOUBLE PRECISION OPASSW
       LOGICAL, INTENT(IN) :: IS_ofType5or6
+      INTEGER, INTENT(IN) :: ICOL_BEG
       INTEGER(8) :: POSELT, POSEL1, APOS, JJ2
-      INTEGER HF,HS, NSLAVES, NFRONT, NASS1,
+      INTEGER HS, NSLAVES, NFRONT, NASS1,
      &        IOLDPS, ISTCHK, LSTK, NSLSON,NELIM,
      &        NPIVS,NCOLS,J1,JJ,JJ1,NROWS,
      &        LDAFS_PERE, IBEG, DIAG
       INCLUDE 'mumps_headers.h'
       LOGICAL SAME_PROC
-      INTRINSIC real
       IOLDPS = PTLUST_S(STEP(INODE))
       POSELT = PTRAST(STEP(INODE))
       NFRONT = IW(IOLDPS+KEEP(IXSZ))
@@ -52,7 +52,6 @@ C
           LDAFS_PERE = NASS1
         ENDIF
       ENDIF
-      HF      = 6 + NSLAVES + KEEP(IXSZ)
       POSEL1 = POSELT - int(LDAFS_PERE,8)
       ISTCHK = PIMASTER(STEP(ISON))
       LSTK = IW(ISTCHK+KEEP(IXSZ))
@@ -75,7 +74,7 @@ C
          APOS = POSEL1 + int(ROWLIST(1),8) * int(LDAFS_PERE,8)
          DO JJ = 1, NBROWS
            DO JJ1 = 1, NBCOLS
-             JJ2 = APOS + int(JJ1-1,8)
+             JJ2 = APOS + int(JJ1-1+(ICOL_BEG-1),8)
              A(JJ2)=A(JJ2)+VALSON(JJ1,JJ)
            ENDDO
            APOS = APOS + int(LDAFS_PERE,8)
@@ -84,7 +83,7 @@ C
         DO 170 JJ = 1, NBROWS
          APOS = POSEL1 + int(ROWLIST(JJ),8) * int(LDAFS_PERE,8)
          DO 160 JJ1 = 1, NBCOLS
-           JJ2 = APOS + int(IW(J1 + JJ1 - 1) - 1,8)
+           JJ2 = APOS + int(IW(J1 + ICOL_BEG-1 + JJ1 - 1) - 1,8)
            A(JJ2) = A(JJ2) + VALSON(JJ1,JJ) 
   160    CONTINUE
   170   CONTINUE
@@ -94,9 +93,9 @@ C
         APOS = POSEL1 + int(ROWLIST(1),8) * int(LDAFS_PERE,8)
         DIAG = ROWLIST(1)
         DO JJ = 1, NBROWS
-          DO JJ1 = 1, DIAG
+          DO JJ1 = ICOL_BEG, min(DIAG,ICOL_BEG+NBCOLS-1)
             JJ2 = APOS+int(JJ1-1,8)
-            A(JJ2) = A(JJ2) + VALSON(JJ1,JJ)
+            A(JJ2) = A(JJ2) + VALSON(JJ1-ICOL_BEG+1,JJ)
           ENDDO
           DIAG = DIAG+1
           APOS = APOS + int(LDAFS_PERE,8)
@@ -105,19 +104,19 @@ C
         DO JJ = 1, NBROWS
          IF (ROWLIST(JJ).LE.NASS1.and..NOT.IS_ofType5or6) THEN
           APOS = POSEL1 + int(ROWLIST(JJ) - 1,8)
-          DO JJ1 = 1, NELIM
+          DO JJ1 = ICOL_BEG, min(NELIM, ICOL_BEG+NBCOLS-1)
            JJ2 = APOS + int(IW(J1+JJ1-1),8)*int(LDAFS_PERE,8)
-            A(JJ2) = A(JJ2) + VALSON(JJ1,JJ)
+            A(JJ2) = A(JJ2) + VALSON(JJ1-ICOL_BEG+1,JJ)
           ENDDO
-          IBEG = NELIM+1
+          IBEG = max(NELIM+1,ICOL_BEG)
          ELSE
-          IBEG = 1
+          IBEG = ICOL_BEG
          ENDIF
          APOS = POSEL1 + int(ROWLIST(JJ),8) * int(LDAFS_PERE,8)
-         DO JJ1 = IBEG, NBCOLS
+         DO JJ1 = IBEG, ICOL_BEG + NBCOLS - 1
           IF (ROWLIST(JJ).LT.IW(J1 + JJ1 - 1)) EXIT
           JJ2 = APOS + int(IW(J1 + JJ1 - 1) - 1,8)
-          A(JJ2) = A(JJ2) + VALSON(JJ1,JJ)
+          A(JJ2) = A(JJ2) + VALSON(JJ1-ICOL_BEG+1,JJ)
          ENDDO
         ENDDO
        ENDIF  
@@ -128,7 +127,8 @@ C
      &    (N, INODE, IW, LIW, A, LA, 
      &    NBROWS, NBCOLS,
      &    OPASSW, OPELIW, STEP, PTRIST, PTRAST, ITLOC,
-     &    RHS_MUMPS, FILS, PTRARW, PTRAIW, INTARR, DBLARR, 
+     &    RHS_MUMPS, FILS,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR, INTARR, DBLARR, 
      &    ICNTL, KEEP,KEEP8, MYID, LRGROUPS)
       USE ZMUMPS_DYNAMIC_MEMORY_M, ONLY : ZMUMPS_DM_SET_DYNPTR
       IMPLICIT NONE
@@ -141,13 +141,16 @@ C
       INTEGER(8) :: PTRAST(KEEP(28))
       INTEGER IW(LIW), ITLOC(N+KEEP(253)), STEP(N),
      &        PTRIST(KEEP(28)), FILS(N)
-      INTEGER(8), INTENT(IN) :: PTRARW(N), PTRAIW(N)
+      INTEGER(8), INTENT(IN) :: PTR8ARR(KEEP(193))
+      INTEGER, INTENT(IN) :: NINCOLARR(KEEP(194))
+      INTEGER, INTENT(IN) :: NINROWARR(KEEP(195))
+      INTEGER, INTENT(IN) :: PTRDEBARR(KEEP(196))
       COMPLEX(kind=8) :: RHS_MUMPS(KEEP(255))
       COMPLEX(kind=8) :: A(LA)
       INTEGER :: INTARR(KEEP8(27))
       COMPLEX(kind=8) :: DBLARR(KEEP8(26))
       DOUBLE PRECISION OPASSW, OPELIW
-      INTEGER, INTENT(IN)    :: LRGROUPS(N)
+      INTEGER, INTENT(IN)    :: LRGROUPS(KEEP(280))
       INTEGER(8) :: POSELT
       COMPLEX(kind=8), DIMENSION(:), POINTER :: A_PTR
       INTEGER(8) :: LA_PTR
@@ -168,10 +171,12 @@ C
       IF (NASS.LT.0) THEN
           NASS         = -NASS
           IW(IOLDPS+1+KEEP(IXSZ)) = NASS
-          CALL ZMUMPS_ASM_SLAVE_ARROWHEADS(INODE, N, IW, LIW,
+          CALL ZMUMPS_ASM_SLAVE_ARROWHEADS(INODE, STEP(INODE),
+     &           N, IW, LIW,
      &           IOLDPS, A_PTR(POSELT), LA_PTR, 1_8, KEEP, KEEP8,
-     &           ITLOC, FILS, PTRAIW, PTRARW, INTARR, DBLARR,
-     &           KEEP8(27), KEEP8(26),
+     &           ITLOC, FILS,
+     &           PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &           INTARR, DBLARR, KEEP8(27), KEEP8(26),
      &           RHS_MUMPS, LRGROUPS)
       ENDIF
       IF (NBROWS.GT.0) THEN
@@ -287,9 +292,10 @@ C
      &              + int((NBROWS-1),8)*int(NBCOLF,8)
             IDIAG = 0
             DO I=NBROWS,1,-1
-             A_PTR(APOS:APOS+int(NBCOLS-IDIAG-1,8))= 
-     &         A_PTR(APOS:APOS+int(NBCOLS-IDIAG-1,8)) +
-     &         VALSON(1:NBCOLS-IDIAG,I)
+             DO J=1,NBCOLS-IDIAG
+               K8 = APOS+int(J-1,8)
+               A_PTR(K8) = A_PTR(K8) + VALSON(J,I)
+             ENDDO
              APOS = APOS - int(NBCOLF,8)
              IDIAG = IDIAG + 1
             ENDDO
@@ -364,6 +370,9 @@ C
                 IPOSCB = IPOSCB + 1_8
               ENDDO
             ELSE
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
               DO J=1, I
                 APOS = POSELT + int(IW( J ),8)
                 A(IAFATH+ APOS -1_8) = A(IACB+IPOSCB-1_8)
@@ -372,6 +381,9 @@ C
               ENDDO
             ENDIF
           ELSE
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
             DO J=1, I
               APOS = POSELT + int(IW( J ),8)
               A(IAFATH+ APOS -1_8) = A(IACB+IPOSCB-1_8)
@@ -417,11 +429,17 @@ C
 !$    LOGICAL    :: OMP_FLAG
       IF ((ETATASS.EQ.0) .OR. (ETATASS.EQ.1)) THEN
         IPOSCB = 1_8
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
         DO I = 1, NELIM
           POSELT = int( IW( I ) - 1, 8 ) * int(NFRONT, 8)
           IF (.NOT. CB_IS_COMPRESSED) THEN
             IPOSCB = 1_8 + int( I - 1, 8 ) * int(NCOLS,8)
           ENDIF
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
           DO J = 1, I
             APOS = POSELT + int(IW( J ),8)
             A(IAFATH+ APOS -1_8) = A(IAFATH+ APOS -1_8)
@@ -441,6 +459,9 @@ C
           ENDIF
           POSELT = int(IW( I ),8)
           IF (POSELT.LE. int(NASS1,8)) THEN 
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
             DO J = 1, NELIM
               APOS = POSELT + int( IW( J ) - 1, 8 ) * int(NFRONT,8)
               A(IAFATH+APOS-1_8) = A(IAFATH+APOS-1_8) +
@@ -449,6 +470,9 @@ C
             END DO
           ELSE
             POSELT = int( IW( I ) - 1, 8 ) * int(NFRONT, 8)
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
             DO J = 1, NELIM
              APOS = POSELT + int(IW( J ), 8)
              A(IAFATH+APOS-1_8) = A(IAFATH+APOS-1_8)
@@ -467,6 +491,9 @@ C
             END DO
           ELSE
             POSELT = int( IW( I ) - 1, 8 ) * int(NFRONT, 8)
+#if defined(__ve__)
+!NEC$ IVDEP
+#endif
             DO J = NELIM + 1, I
              APOS = POSELT + int(IW( J ), 8)
              A(IAFATH+APOS-1_8) = A(IAFATH+APOS-1_8)
@@ -574,7 +601,7 @@ C
       DOUBLE PRECISION OPASSW
       INTEGER HF,HS, NSLAVES, NASS1,
      &     IOLDPS, ISTCHK,
-     &     LSTK, NSLSON,NELIM,NPIVS,NCOLS, J1,
+     &     LSTK, NSLSON,NPIVS,NCOLS, J1,
      &     JJ1,NROWS
       INTEGER(8) POSELT, APOS, JJ2
       INCLUDE 'mumps_headers.h'
@@ -589,7 +616,6 @@ C
       LSTK = IW(ISTCHK + KEEP(IXSZ))
       NSLSON  = IW(ISTCHK + 5 + KEEP(IXSZ))
       HS      = 6 + NSLSON + KEEP(IXSZ)
-      NELIM = IW(ISTCHK + 1 + KEEP(IXSZ))
       NPIVS = IW(ISTCHK + 3 + KEEP(IXSZ))
       IF (NPIVS.LT.0) NPIVS = 0
       NCOLS = NPIVS + LSTK
@@ -609,16 +635,19 @@ C
       ENDDO
       RETURN
       END SUBROUTINE ZMUMPS_ASM_MAX
-      SUBROUTINE ZMUMPS_ASM_SLAVE_ARROWHEADS(INODE, N, IW, LIW, IOLDPS,
+      SUBROUTINE ZMUMPS_ASM_SLAVE_ARROWHEADS(INODE, ISTEP,
+     &           N, IW, LIW, IOLDPS,
      &           A, LA, POSELT, KEEP, KEEP8,
-     &           ITLOC, FILS, PTRAIW, PTRARW, INTARR, DBLARR,
+     &           ITLOC, FILS,
+     &           PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &           INTARR, DBLARR,
      &           LINTARR, LDBLARR, RHS_MUMPS, LRGROUPS)
 !$    USE OMP_LIB
       USE ZMUMPS_ANA_LR,    ONLY : GET_CUT
       USE ZMUMPS_LR_CORE,   ONLY : MAX_CLUSTER
       USE MUMPS_LR_COMMON,  ONLY : COMPUTE_BLR_VCS
       IMPLICIT NONE
-      INTEGER, intent(in)    :: N, LIW, IOLDPS, INODE
+      INTEGER, intent(in)    :: N, LIW, IOLDPS, INODE, ISTEP
       INTEGER(8), intent(in) :: LA, POSELT
       INTEGER(8), intent(in) :: LINTARR, LDBLARR
       INTEGER, intent(in)    :: IW(LIW)
@@ -630,16 +659,19 @@ C
       COMPLEX(kind=8), intent(in)    :: DBLARR(LDBLARR)
       INTEGER, intent(in)    :: INTARR(LINTARR)
       INTEGER, intent(in)    :: FILS(N)
-      INTEGER(8), intent(in) :: PTRAIW(N), PTRARW(N)
-      INTEGER, INTENT(IN)    :: LRGROUPS(N)
+      INTEGER(8), INTENT(IN) :: PTR8ARR(KEEP(193))
+      INTEGER, INTENT(IN) :: NINCOLARR(KEEP(194))
+      INTEGER, INTENT(IN) :: NINROWARR(KEEP(195))
+      INTEGER, INTENT(IN) :: PTRDEBARR(KEEP(196))
+      INTEGER, INTENT(IN)    :: LRGROUPS(KEEP(280))
 !$    INTEGER :: NOMP
 !$    INTEGER(8) :: CHUNK8  
 !$    INTEGER    :: CHUNK
       INCLUDE 'mumps_headers.h'
       INTEGER    :: HF, NBROWF, NBCOLF, NASS, NSLAVES
       INTEGER    :: ILOC, J, K, K1, K2, JPOS, IJROW
-      INTEGER    :: IN
-      INTEGER(8) :: J18, J28, JJ8, JK8
+      INTEGER    :: IN, IARR1, IORG
+      INTEGER(8) :: J18, J28, JJ8
       INTEGER(8) :: APOS, ICT12
       INTEGER(8) :: AINPUT8
       INTEGER, POINTER, DIMENSION(:) :: BEGS_BLR_LS
@@ -657,7 +689,11 @@ C
 !$    NOMP = OMP_GET_MAX_THREADS()
       IF (KEEP(50) .EQ. 0 .OR. NBROWF .LT. KEEP(63)) THEN
 !$      CHUNK8 = int(KEEP(361),8)
+#if defined(_CRAYFTN)
+!$OMP   PARALLEL DO PRIVATE(JJ8) SCHEDULE(STATIC, KEEP(361))
+#else
 !$OMP   PARALLEL DO PRIVATE(JJ8) SCHEDULE(STATIC, CHUNK8)
+#endif
 !$OMP&  IF (int(NBROWF,8)*int(NBCOLF,8) > int(KEEP(361),8)
 !$OMP&    .AND. NOMP .GT. 1)
         DO JJ8=POSELT, POSELT+int(NBROWF,8)*int(NBCOLF,8)-1_8
@@ -736,12 +772,13 @@ C
            ENDDO
       ENDIF
       IN = INODE
-      DO WHILE (IN.GT.0) 
-           AINPUT8 = PTRARW(IN)
-           JK8     = PTRAIW(IN)
-           JJ8     = JK8 + 1_8
-           J18     = JJ8 + 1_8
-           J28 = J18 + INTARR(JK8)
+      IORG = 0
+      IARR1 = PTRDEBARR(ISTEP)
+      DO WHILE (IN.GT.0)
+           IORG = IORG + 1
+           AINPUT8 = PTR8ARR( IARR1 + IORG -1 )
+           J18 = AINPUT8
+           J28 = J18 + NINCOLARR(IARR1+IORG-1)
            IJROW = -ITLOC(INTARR(J18))
            ICT12 = POSELT +int(- NBCOLF + IJROW - 1,8)
            DO JJ8= J18,J28
@@ -828,14 +865,14 @@ C
       RETURN
       END FUNCTION ZMUMPS_IS_GEMM_LARGE_ENOUGH
       SUBROUTINE ZMUMPS_PARPIVT1_SET_MAX ( INODE, 
-     &                                 A, LAELL8, KEEP, NFRONT, 
-     &                                 NASS1, NVSCHUR_K253 )
-     &               
+     &                           A, LAELL8, KEEP, NFRONT, 
+     &                           NASS1, NVSCHUR_K253, NB_POSTPONED)
        IMPLICIT NONE
       INTEGER(8), intent(in) :: LAELL8
       INTEGER, intent(in)    :: INODE
       INTEGER, intent(in)    :: KEEP(500), NFRONT, NASS1, 
      &                          NVSCHUR_K253
+      INTEGER, intent(in)    :: NB_POSTPONED
       COMPLEX(kind=8), intent(inout) :: A(LAELL8)
       INTEGER(8) :: APOSMAX, APOS, NASS1_8, NFRONT_8
       INTEGER    :: I, J, NCB
@@ -871,51 +908,65 @@ C
        ENDDO
       ENDIF
       CALL ZMUMPS_UPDATE_PARPIV_ENTRIES ( INODE,
-     &     KEEP, A(APOSMAX), NASS1)
+     &     KEEP, A(APOSMAX), NASS1, NB_POSTPONED)
       RETURN
       END SUBROUTINE ZMUMPS_PARPIVT1_SET_MAX
       SUBROUTINE ZMUMPS_UPDATE_PARPIV_ENTRIES ( INODE,
-     &           KEEP, PARPIV, LPARPIV)
+     &           KEEP, PARPIV, LPARPIV, 
+     &           NB_POSTPONED)
       IMPLICIT NONE
       INTEGER, intent(in)   :: INODE, LPARPIV, KEEP(500)
       COMPLEX(kind=8), intent(inout):: PARPIV(LPARPIV)
+      INTEGER, intent(in)   :: NB_POSTPONED
       INTEGER    :: I
       DOUBLE PRECISION       :: EPS, RMIN, RZERO, RTMP
+      DOUBLE PRECISION       :: RMAX
       LOGICAL    :: UPDATE_PARPIV
       PARAMETER( RZERO = 0.0D0 )
       UPDATE_PARPIV=.FALSE.
-      RMIN = huge(RZERO)
+      RMIN      = huge(RZERO)
+      RMAX      = RZERO
+      EPS       = sqrt(epsilon(RZERO))*0.01D0
       DO I = 1, LPARPIV
         RTMP = dble(PARPIV(I))
         IF (RTMP.GT.RZERO) THEN
          RMIN = min(RMIN,  RTMP)
-        ELSE 
+        ELSE
          UPDATE_PARPIV=.TRUE.
         ENDIF
+        IF (RTMP.LE.EPS) UPDATE_PARPIV=.TRUE.
+        RMAX=  max(RMAX,dble(PARPIV(I)))
       ENDDO
       IF (UPDATE_PARPIV) THEN
        IF (RMIN.LT.huge(RMIN)) THEN
-        EPS  = sqrt(epsilon(RZERO))
-        RMIN = min(RMIN, EPS)
-        DO I = 1, LPARPIV
+        RMAX= min (RMAX, EPS)
+        DO I = 1, LPARPIV-NB_POSTPONED
           RTMP = dble(PARPIV(I))
-          IF (dble(PARPIV(I)).EQ.RZERO) THEN
-            PARPIV(I) = cmplx(-RMIN, kind=kind(PARPIV))
+          IF (RTMP.LE.EPS) THEN
+            PARPIV(I) = cmplx(-RMAX, kind=kind(PARPIV))
           ENDIF
         ENDDO
+        IF (NB_POSTPONED.GT.0) THEN
+         DO I=LPARPIV-NB_POSTPONED+1, LPARPIV
+          RTMP = dble(PARPIV(I))
+          IF (RTMP.LE.EPS) THEN
+            PARPIV(I) = cmplx(-RMAX, kind=kind(PARPIV))
+          ENDIF
+         ENDDO
+        ENDIF
        ENDIF
       ENDIF
       RETURN
       END SUBROUTINE ZMUMPS_UPDATE_PARPIV_ENTRIES
-      SUBROUTINE ZMUMPS_PARPIVT1_SET_NVSCHUR_and_MAX
+      SUBROUTINE ZMUMPS_PARPIVT1_SET_NVSCHUR_MAX
      &    (N, INODE, IW, LIW, A, LA, KEEP, PERM,
      &     IOLDPS, POSELT, 
-     &     NFRONT, NASS1, LR_ACTIVATED, PARPIV_T1)
-      USE ZMUMPS_FAC_FRONT_AUX_M, 
-     &                      ONLY: ZMUMPS_COMPUTE_SIZE_SCHUR_IN_FRONT
+     &     NFRONT, NASS1, LR_ACTIVATED, PARPIV_T1, 
+     &     NB_POSTPONED)
+      USE ZMUMPS_FAC_FRONT_AUX_M, ONLY: ZMUMPS_GET_SIZE_SCHUR_IN_FRONT
       IMPLICIT NONE
       INTEGER, intent(in)    :: N, INODE, LIW, IOLDPS,
-     &                          NFRONT, NASS1
+     &                          NFRONT, NASS1, NB_POSTPONED
       INTEGER(8), intent(in) :: LA, POSELT
       INTEGER, intent(in)    :: IW (LIW), PERM(N), KEEP(500)
       LOGICAL, intent(in)    :: LR_ACTIVATED
@@ -933,7 +984,7 @@ C
       IF (PARPIV_T1.NE.0) THEN
           IF ((KEEP(114).EQ.1) .AND. (KEEP(116).GT.0) ) THEN
              IROW_L = IOLDPS+6+KEEP(IXSZ)+NASS1
-             CALL ZMUMPS_COMPUTE_SIZE_SCHUR_IN_FRONT ( 
+             CALL ZMUMPS_GET_SIZE_SCHUR_IN_FRONT ( 
      &                   N, 
      &                   NFRONT-NASS1, 
      &                   KEEP(116), 
@@ -946,7 +997,8 @@ C
           LAELL8  = NFRONT8 * NFRONT8 + int(NASS1,8)
           CALL ZMUMPS_PARPIVT1_SET_MAX ( INODE, 
      &                            A(POSELT), LAELL8, KEEP, 
-     &                            NFRONT, NASS1, NVSCHUR_K253 )
+     &                            NFRONT, NASS1, NVSCHUR_K253,
+     &                            NB_POSTPONED )
       ENDIF
       RETURN
-      END SUBROUTINE ZMUMPS_PARPIVT1_SET_NVSCHUR_and_MAX
+      END SUBROUTINE ZMUMPS_PARPIVT1_SET_NVSCHUR_MAX

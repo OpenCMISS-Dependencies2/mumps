@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -38,7 +38,7 @@ C
       LOGICAL :: BUILDQ
       INTEGER :: OMP_NUM
       INTEGER :: IBIS
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       INTEGER(8) :: POSELTT, POSELTD
@@ -49,7 +49,7 @@ C
       POSELTD = POSELT + int(NFRONT,8) * int(BEGS_BLR(CURRENT_BLR)-1,8)
      &          + int(BEGS_BLR(CURRENT_BLR) - 1,8)
       OMP_NUM = 0 
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC, CHUNK)
 !$OMP& PRIVATE(I, J, POSELTT, OMP_NUM,
@@ -59,7 +59,7 @@ C
         IF (IFLAG.LT.0) CYCLE
         I = CEILING((1.0D0+SQRT(1.0D0+8.0D0*dble(IBIS)))/2.0D0)-1
         J = IBIS - I*(I-1)/2
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)         
         OMP_NUM = 0
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
 #endif
@@ -79,7 +79,7 @@ C
      &          MIDBLK_COMPRESS, MID_RANK, BUILDQ,
      &          (I.EQ.J), .FALSE.)
          ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP) 
 !$OMP END DO
 #endif
       END SUBROUTINE CMUMPS_BLR_UPDATE_TRAILING_LDLT
@@ -114,18 +114,17 @@ C
       LOGICAL :: BUILDQ
       INTEGER :: OMP_NUM
       INTEGER :: IBIS
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
-      INTEGER(8) :: POSELTT, POSELTD
+      INTEGER(8) :: POSELTT
       COMPLEX :: ONE, MONE, ZERO
       PARAMETER (ONE=(1.0E0,0.0E0), MONE=(-1.0E0,0.0E0))
       PARAMETER (ZERO=(0.0E0,0.0E0))
       NB_BLOCKS_PANEL_LM = NB_BLR_LM-CURRENT_BLR_LM
       NB_BLOCKS_PANEL_LS = NB_BLR_LS-CURRENT_BLR_LS
-      POSELTD = 1_8 
       OMP_NUM = 0
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK)
 !$OMP& PRIVATE(I, J, POSELTT, OMP_NUM, MID_RANK, BUILDQ) 
@@ -134,7 +133,7 @@ C
         IF (IFLAG.LT.0) CYCLE
         I = (IBIS-1)/NB_BLOCKS_PANEL_LM+1
         J = IBIS - (I-1)*NB_BLOCKS_PANEL_LM
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         OMP_NUM = 0 
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
 #endif
@@ -156,7 +155,7 @@ C
      &           MIDBLK_COMPRESS, MID_RANK, BUILDQ,
      &           .FALSE., .FALSE.)
          ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO
          IF (IFLAG.LT.0) RETURN
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK)
@@ -166,7 +165,7 @@ C
           IF (IFLAG.LT.0) CYCLE
           I = CEILING((1.0D0+SQRT(1.0D0+8.0D0*dble(IBIS)))/2.0D0)-1
           J = IBIS - I*(I-1)/2
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
           OMP_NUM = 0
 !$        OMP_NUM = OMP_GET_THREAD_NUM() 
 #endif
@@ -188,7 +187,7 @@ C
      &            MIDBLK_COMPRESS, MID_RANK, BUILDQ, 
      &            (I.EQ.J), .FALSE.)
       ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO
 #endif
       RETURN
@@ -216,7 +215,7 @@ C
       PARAMETER (ZERO=(0.0E0,0.0E0))
       IF (NELIM.NE.0) THEN 
         LPOS = POSELT + int(NFRONT,8)*int(NPIV,8) + int(IBEG_BLR-1,8)
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP DO PRIVATE(LRB, UPOS)
 #endif
         DO IP = FIRST_BLOCK, NB_BLR 
@@ -247,7 +246,7 @@ C
           ENDIF
  100    CONTINUE
         ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP ENDDO
 #endif
       ENDIF
@@ -275,7 +274,7 @@ C
       PARAMETER (ZERO=(0.0E0,0.0E0))
       NB_BLOCKS_PANEL_L = NB_BLR_L-CURRENT_BLR
       IF (NELIM.NE.0) THEN 
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP DO PRIVATE(KL, ML, NL, IPOS)
 #endif
         DO I = FIRST_BLOCK-CURRENT_BLR, NB_BLOCKS_PANEL_L
@@ -311,7 +310,7 @@ C
           ENDIF
  100      CONTINUE
         ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP ENDDO
 #endif
       ENDIF
@@ -341,9 +340,8 @@ C
      &           KL, ML, NL, J, IS, MID_RANK
       INTEGER :: allocok
       LOGICAL :: BUILDQ
-      INTEGER :: OMP_NUM
       INTEGER :: IBIS
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       INTEGER(8) :: POSELT_INCB, POSELT_TOP
@@ -358,7 +356,7 @@ C
       ELSE
        IS = 0
       ENDIF
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP SINGLE
 #endif
       IF (NELIM.NE.0) THEN 
@@ -402,12 +400,11 @@ C
          ENDDO
       ENDIF
  100  CONTINUE
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END SINGLE
 #endif
       IF (IFLAG.LT.0) GOTO 200
-      OMP_NUM = 0
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK) 
 !$OMP& PRIVATE(I, J, POSELT_INCB, MID_RANK, BUILDQ)
@@ -429,7 +426,7 @@ C
      &           MIDBLK_COMPRESS, MID_RANK, BUILDQ,
      &           .FALSE., .FALSE.)
        ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO
 #endif
  200  CONTINUE
@@ -473,7 +470,7 @@ C
       LOGICAL :: BUILDQ, COMPRESSED_FR
       INTEGER :: OFFSET_IW
       INTEGER :: OMP_NUM
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       INTEGER(8) :: POSELT_INCB, POSELTD
@@ -497,7 +494,7 @@ C
         ENDIF
       ENDIF
       OMP_NUM = 0
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK) 
 !$OMP& PRIVATE(I, J, JJ, POSELT_INCB, MID_RANK, BUILDQ, K_MAX,
@@ -507,7 +504,7 @@ C
 !$OMP&         FRFR_UPDATES, COMPRESSED_FR, FR_RANK, II, OFFSET_IW)
 #endif
       DO I = 1, NB_BLOCKS_PANEL
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         IF (IFLAG.LT.0) CYCLE
         OMP_NUM = 0
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
@@ -746,7 +743,7 @@ C
         ENDIF
  100    CONTINUE        
       ENDDO                                 
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO                                
 #endif
       END SUBROUTINE CMUMPS_BLR_UPD_PANEL_LEFT_LDLT
@@ -788,7 +785,7 @@ C
       INTEGER :: J_ORDER(CURRENT_BLR), J_RANK(CURRENT_BLR)
       INTEGER, ALLOCATABLE :: POS_LIST(:), RANK_LIST(:)
       LOGICAL :: BUILDQ, COMPRESSED_FR
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: OMP_NUM
       INTEGER :: CHUNK
 #endif
@@ -834,7 +831,7 @@ C
           END_I = END_I_IN - CURRENT_BLR
         ENDIF
       ENDIF
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK)
 !$OMP& PRIVATE(I, J, JJ, POSELT_INCB, MID_RANK, BUILDQ,
@@ -845,7 +842,7 @@ C
 #endif
       DO I = BEG_I, END_I
         IF (IFLAG.LT.0) CYCLE
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         OMP_NUM = 0
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
         ACC_LRB => ACC_LUA(OMP_NUM+1)
@@ -1116,7 +1113,7 @@ C
         ENDIF
  100    CONTINUE        
       ENDDO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO NOWAIT
 #endif
       END SUBROUTINE CMUMPS_BLR_UPD_PANEL_LEFT
@@ -1149,23 +1146,22 @@ C
      &           K_ORDER(NB_INASM), K_RANK(NB_INASM), NB_DEC
       INTEGER, ALLOCATABLE :: POS_LIST(:), RANK_LIST(:)
       INTEGER(8) :: POSELT_BLOCK, POSELTD
-      INTEGER :: NCB, MID_RANK, FRFR_UPDATES, MAXRANK, FR_RANK
+      INTEGER :: MID_RANK, FRFR_UPDATES, MAXRANK, FR_RANK
       LOGICAL :: BUILDQ, COMPRESSED_FR
       TYPE(LRB_TYPE), POINTER :: BLR_L(:)
       TYPE(LRB_TYPE), POINTER :: ACC_LRB
       INTEGER :: OLD_ACC_RANK, MAX_ACC_RANK, NEW_ACC_RANK
       INTEGER :: OFFSET_IW
       INTEGER :: OMP_NUM
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       COMPLEX :: ONE, MONE, ZERO
       PARAMETER (ONE=(1.0E0,0.0E0), MONE=(-1.0E0,0.0E0))
       PARAMETER (ZERO=(0.0E0,0.0E0))
-      NCB = NFRONT - NASS 
       ACC_LRB => ACC_LUA(1)
       OMP_NUM = 0
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK) 
 !$OMP& PRIVATE(I, J, K, KK, POSELT_BLOCK, MID_RANK, BUILDQ,
@@ -1180,7 +1176,7 @@ C
         J = IBIS - I*(I-1)/2
         I = I+NB_INASM
         J = J+NB_INASM
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         OMP_NUM = 0
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
         ACC_LRB => ACC_LUA(OMP_NUM+1)
@@ -1413,7 +1409,7 @@ C
         ENDIF
  100    CONTINUE     
       END DO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO 
 #endif
       END SUBROUTINE CMUMPS_BLR_UPD_CB_LEFT_LDLT
@@ -1421,7 +1417,8 @@ C
      &        BEGS_BLR, BEGS_BLR_U, NB_ROWS, NB_INCB, NB_INASM, NASS,
      &        IWHANDLER, NIV, LBANDSLAVE, IFLAG, IERROR,
      &        MIDBLK_COMPRESS, TOLEPS, TOL_OPT, KPERCENT_RMB,
-     &        ACC_LUA, K480, K479, K478, KPERCENT_LUA, KPERCENT,
+     &        ACC_LUA, K480, K479, K478, KPERCENT_LUA,
+     &        KPERCENT,
      &        MAXI_CLUSTER, MAXI_RANK,
      &        K474, FSorCB, BLR_U_COL, COMPRESS_CB, CB_LRB, KEEP8)
 !$    USE OMP_LIB
@@ -1435,10 +1432,10 @@ C
      &                                FSorCB
       INTEGER, intent(inout)         :: IFLAG, IERROR
       INTEGER, DIMENSION(:) :: BEGS_BLR, BEGS_BLR_U
-#if defined(MUMPS_F2003)
-      TYPE(LRB_TYPE), POINTER, intent(inout) :: CB_LRB(:,:)
-#else
+#if defined(MUMPS_NOF2003)
       TYPE(LRB_TYPE), POINTER :: CB_LRB(:,:)
+#else
+      TYPE(LRB_TYPE), POINTER, intent(inout) :: CB_LRB(:,:)
 #endif
       TYPE(LRB_TYPE), POINTER :: ACC_LUA(:), BLR_U_COL(:)
       INTEGER(8) :: KEEP8(150)
@@ -1451,13 +1448,12 @@ C
       INTEGER, ALLOCATABLE :: POS_LIST(:), RANK_LIST(:)
       INTEGER(8) :: POSELT_BLOCK
       INTEGER :: MID_RANK, K_MAX, FRFR_UPDATES, NB_DEC
-      INTEGER :: FRONT_CB_BLR_SAVINGS
       LOGICAL :: BUILDQ, COMPRESSED_FR
       TYPE(LRB_TYPE), POINTER :: BLR_U(:), BLR_L(:)
       TYPE(LRB_TYPE), POINTER :: ACC_LRB, LRB
       INTEGER :: OLD_ACC_RANK, MAX_ACC_RANK, NEW_ACC_RANK, MAXRANK,
      &           FR_RANK
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: OMP_NUM
       INTEGER :: CHUNK
 #endif
@@ -1465,8 +1461,7 @@ C
       PARAMETER (ONE=(1.0E0,0.0E0), MONE=(-1.0E0,0.0E0))
       PARAMETER (ZERO=(0.0E0,0.0E0))
       ACC_LRB => ACC_LUA(1)
-      FRONT_CB_BLR_SAVINGS = 0
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK) 
 !$OMP& PRIVATE(I, J, K, KK, POSELT_BLOCK, MID_RANK, BUILDQ,
@@ -1483,7 +1478,7 @@ C
           I = I+NB_INASM
         ENDIF
         J = J+NB_INASM
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         OMP_NUM=0 
 !$      OMP_NUM = OMP_GET_THREAD_NUM() 
         ACC_LRB => ACC_LUA(OMP_NUM+1)
@@ -1682,8 +1677,8 @@ C
               CALL ALLOC_LRB_FROM_ACC(ACC_LRB, LRB,
      &                       ACC_LRB%K, ACC_LRB%M, ACC_LRB%N, 0,
      &                       IFLAG, IERROR, KEEP8)
-              FRONT_CB_BLR_SAVINGS = FRONT_CB_BLR_SAVINGS + 
-     &                LRB%M*LRB%N - LRB%M*LRB%K - LRB%N*LRB%K
+              CALL UPD_MRY_CB_LRGAIN(LRB
+     &                              )
               ACC_LRB%K = 0
               IF (IFLAG.LT.0) GOTO 100
             ELSE
@@ -1734,29 +1729,24 @@ C
         ENDIF                               
  100    CONTINUE       
       END DO
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO 
 #endif
+#if ! defined(BLR_NOOPENMP)
+!$OMP MASTER
+#endif
       IF (COMPRESS_CB) THEN
-#if defined(BLR_MT)
-!$      OMP_NUM = OMP_GET_THREAD_NUM()
-!$      IF (OMP_NUM.EQ.0) THEN
-#endif
-        CALL UPD_MRY_CB(NFRONT-NASS, NFRONT-NASS, 0, 1,
-     &                        FRONT_CB_BLR_SAVINGS)
-#if defined(BLR_MT)
-!$      ELSE
-!$        CALL UPD_MRY_CB(0, 0, 0, 1,
-!$   &                        FRONT_CB_BLR_SAVINGS)
-!$      ENDIF
-#endif
+        CALL UPD_MRY_CB_FR(NFRONT-NASS, NFRONT-NASS, 0)
       ENDIF
+#if ! defined(BLR_NOOPENMP)
+!$OMP END MASTER
+#endif
       END SUBROUTINE CMUMPS_BLR_UPD_CB_LEFT
       SUBROUTINE CMUMPS_DECOMPRESS_PANEL(A, LA, POSELT, LDA11,
      &        LDA21, COPY_DENSE_BLOCKS,
      &        BEGS_BLR_DIAG, BEGS_BLR_FIRST_OFFDIAG,
      &        NB_BLR, BLR_PANEL, CURRENT_BLR, DIR, DECOMP_TIMER,
-     &        BEG_I_IN, END_I_IN, ONLY_NELIM_IN, CBASM_TOFIX_IN)
+     &        BEG_I_IN, END_I_IN, ONLY_NELIM_IN)
 !$    USE OMP_LIB 
       INTEGER(8), intent(in)       :: LA
       COMPLEX, intent(inout)       :: A(LA)
@@ -1770,11 +1760,9 @@ C
       INTEGER, intent(in) :: LDA11, LDA21
       INTEGER, intent(in) :: DECOMP_TIMER
       INTEGER,OPTIONAL,intent(in) :: BEG_I_IN, END_I_IN, ONLY_NELIM_IN
-      LOGICAL,OPTIONAL,intent(in) :: CBASM_TOFIX_IN
-      INTEGER :: IP, M, N, BIP, BEG_I, END_I, ONLY_NELIM
-      LOGICAL :: CBASM_TOFIX
-#if defined(BLR_MT)
-      INTEGER :: LAST_IP, CHUNK
+      INTEGER :: IP, M, N, BIP, BIP_START, BEG_I, END_I, ONLY_NELIM
+#if ! defined(BLR_NOOPENMP)
+      INTEGER :: CHUNK
 #endif
       INTEGER :: K, I
       DOUBLE PRECISION :: PROMOTE_COST
@@ -1797,49 +1785,30 @@ C
       ELSE
         ONLY_NELIM = 0
       ENDIF
-      IF (present(CBASM_TOFIX_IN)) THEN
-        CBASM_TOFIX = CBASM_TOFIX_IN
-      ELSE
-        CBASM_TOFIX = .FALSE.
-      ENDIF
       LD_BLK_IN_FRONT = int(LDA11,8)
-      BIP             = BEGS_BLR_FIRST_OFFDIAG
-#if !defined(BLR_MT)
+      BIP_START       = BEGS_BLR_FIRST_OFFDIAG
+#if defined(BLR_NOOPENMP)
       IF (BEG_I .NE. CURRENT_BLR+1) THEN
         DO I = 1, BEG_I - CURRENT_BLR - 1
-          IF (CBASM_TOFIX) THEN
-            BIP  = BIP +  BLR_PANEL(I)%N
-          ELSE
-            BIP  = BIP +  BLR_PANEL(I)%M
-          ENDIF
+          BIP_START  = BIP_START +  BLR_PANEL(I)%M
         ENDDO
       ENDIF
 #endif
-#if defined(BLR_MT)
-      LAST_IP = CURRENT_BLR+1
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
-!$OMP DO PRIVATE(POSELT_BLOCK, M, N, K, I) SCHEDULE(DYNAMIC, CHUNK)
+!$OMP DO SCHEDULE(DYNAMIC, CHUNK)
 #endif
       DO IP = BEG_I, END_I
-#if defined(BLR_MT)
-        DO I = 1, IP - LAST_IP
-          IF (CBASM_TOFIX) THEN
-            BIP  = BIP +  BLR_PANEL(LAST_IP-CURRENT_BLR+I-1)%N
-          ELSE
-            BIP  = BIP +  BLR_PANEL(LAST_IP-CURRENT_BLR+I-1)%M
-          ENDIF
+#if ! defined(BLR_NOOPENMP)
+        BIP = BIP_START
+        DO I = 1, IP - BEG_I
+          BIP  = BIP +  BLR_PANEL(BEG_I-CURRENT_BLR+I-1)%M
         ENDDO
-        LAST_IP = IP
 #endif
         IF (DIR .eq. 'V') THEN
            IF (BIP .LE. LDA21) THEN
-             IF (CBASM_TOFIX) THEN
-               POSELT_BLOCK = POSELT 
-     &              + int(LDA11,8)*int(BEGS_BLR_DIAG-1,8) + int(BIP-1,8)
-             ELSE
-               POSELT_BLOCK = POSELT + int(LDA11,8)*int(BIP-1,8) + 
+             POSELT_BLOCK = POSELT + int(LDA11,8)*int(BIP-1,8) + 
      &              int(BEGS_BLR_DIAG - 1,8)
-             ENDIF
            ELSE
              POSELT_BLOCK = POSELT + int(LDA11,8)*int(LDA21,8)+
      &              int(BEGS_BLR_DIAG - 1,8)
@@ -1881,8 +1850,7 @@ C
           ENDIF
           IF (DIR .eq. 'V') THEN
             IF (DIR .eq.'V' .AND. BIP .LE. LDA21
-     &                 .AND. BIP + M - 1 .GT. LDA21
-     &                 .AND..NOT.CBASM_TOFIX) THEN
+     &                 .AND. BIP + M - 1 .GT. LDA21) THEN
               CALL cgemm('T', 'T', N, LDA21-BIP+1, K, ONE ,
      &            BLR_PANEL(IP-CURRENT_BLR)%R(1,1) , K, 
      &            BLR_PANEL(IP-CURRENT_BLR)%Q(1,1) , M, 
@@ -1905,9 +1873,7 @@ C
      &          A(POSELT_BLOCK+int(N-ONLY_NELIM,8)*int(LDA11,8)), LDA11)
           ENDIF
           PROMOTE_COST = 2.0D0*M*K*ONLY_NELIM
-          IF (CBASM_TOFIX) THEN
-            CALL UPD_FLOP_DECOMPRESS(PROMOTE_COST, .TRUE.)
-          ELSEIF(present(ONLY_NELIM_IN)) THEN
+          IF(present(ONLY_NELIM_IN)) THEN
             CALL UPD_FLOP_DECOMPRESS(PROMOTE_COST, .FALSE.)
           ENDIF
         ELSE  IF (COPY_DENSE_BLOCKS) THEN
@@ -1930,15 +1896,11 @@ C
           ENDIF
         ENDIF
  1800   CONTINUE
-#if !defined(BLR_MT)
-        IF (CBASM_TOFIX) THEN
-          BIP  = BIP +  BLR_PANEL(IP-CURRENT_BLR)%N
-        ELSE
-          BIP  = BIP +  BLR_PANEL(IP-CURRENT_BLR)%M
-        ENDIF
+#if defined(BLR_NOOPENMP)
+        BIP  = BIP +  BLR_PANEL(IP-CURRENT_BLR)%M
 #endif
       ENDDO
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO
 #endif
       END SUBROUTINE CMUMPS_DECOMPRESS_PANEL
@@ -1948,7 +1910,7 @@ C
      &        IWHANDLER, SYM, NIV, IFLAG, IERROR,
      &        TOLEPS, TOL_OPT, KPERCENT, K489, CB_LRB,
      &        WORK, TAU, JPVT, LWORK, RWORK, BLOCK,
-     &        MAXI_CLUSTER, KEEP8, 
+     &        MAXI_CLUSTER, KEEP8,
      &        NFS4FATHER, NPIV, NVSCHUR_K253, KEEP,
      &        M_ARRAY,
      &        NELIM, 
@@ -1975,7 +1937,7 @@ C
       REAL, OPTIONAL :: M_ARRAY(max(NFS4FATHER,1))
       INTEGER, intent(in), OPTIONAL :: NELIM
       INTEGER, intent(in), OPTIONAL :: NBROWSinF
-      INTEGER :: M, N, INFO, FRONT_CB_BLR_SAVINGS
+      INTEGER :: M, N, INFO
       INTEGER :: I, J, IBIS, IBIS_END, RANK, MAXRANK, II, JJ
       INTEGER(8) :: POSELT_BLOCK
       LOGICAL :: ISLR
@@ -1983,7 +1945,7 @@ C
       INTEGER :: OMP_NUM
       INTEGER(8) :: POSA, ASIZE
       INTEGER    :: NROWS_CM
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       REAL, POINTER, DIMENSION(:) :: RWORK_THR
@@ -1993,7 +1955,7 @@ C
       COMPLEX :: ONE, MONE, ZERO
       PARAMETER (ONE=(1.0E0,0.0E0), MONE=(-1.0E0,0.0E0))
       PARAMETER (ZERO=(0.0E0,0.0E0))
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP MASTER
 #endif
       IF ( (KEEP(219).NE.0).AND.(KEEP(50).EQ.2).AND.
@@ -2030,18 +1992,16 @@ C
           ENDDO
        ENDIF
       ENDIF
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP END MASTER
 !$OMP BARRIER
 #endif
-      FRONT_CB_BLR_SAVINGS = 0
-      OMP_NUM = 0 
       IF (SYM.EQ.0.OR.NIV.EQ.2) THEN
         IBIS_END = NB_ROWS*NB_COLS
       ELSE
         IBIS_END = NB_ROWS*(NB_COLS+1)/2
       ENDIF
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO SCHEDULE(DYNAMIC,CHUNK) 
 !$OMP& PRIVATE(I, J, POSELT_BLOCK, M, N, OMP_NUM, INFO, RANK,
@@ -2049,8 +2009,8 @@ C
 #endif
       DO IBIS = 1,IBIS_END
         IF (IFLAG.LT.0) CYCLE     
-#if defined(BLR_MT)         
         OMP_NUM = 0 
+#if ! defined(BLR_NOOPENMP)
 !$      OMP_NUM = OMP_GET_THREAD_NUM()
 #endif
         BLOCK_THR => BLOCK(1:MAXI_CLUSTER,OMP_NUM*MAXI_CLUSTER+1:
@@ -2112,6 +2072,7 @@ C
             MAXRANK = 1
             RANK = MAXRANK+1
             INFO = 0
+            ISLR = .FALSE.
             GOTO 3800
         ENDIF
         DO II=1,M
@@ -2127,14 +2088,14 @@ C
      &       TAU_THR(1), 
      &       WORK_THR(1), N, 
      &       RWORK_THR(1), 
-     &       TOLEPS, TOL_OPT, RANK, MAXRANK, INFO)
+     &       TOLEPS, TOL_OPT, RANK, MAXRANK, INFO,
+     &       ISLR)
  3800 CONTINUE
         IF (INFO < 0) THEN
            WRITE(*,*) " PROBLEM IN ARGUMENT NUMBER ",INFO,
      &                 " OF TRUNCATED_RRQR WHILE COMPRESSING A CB BLOCK"
            CALL MUMPS_ABORT()
         END IF
-        ISLR = ((RANK.LE.MAXRANK).AND.(M.NE.0).AND.(N.NE.0))     
         CALL ALLOC_LRB(LRB, RANK, M, N, ISLR, IFLAG, IERROR, KEEP8)
         IF (IFLAG.LT.0) CYCLE
         IF (ISLR) THEN 
@@ -2165,8 +2126,8 @@ C
                  CALL UPD_FLOP_COMPRESS(LRB, CB_COMPRESS=.TRUE.)
                ENDIF
           END IF
-          FRONT_CB_BLR_SAVINGS = FRONT_CB_BLR_SAVINGS + 
-     &                (M-RANK)*(N-RANK)-RANK*RANK
+          CALL UPD_MRY_CB_LRGAIN(LRB
+     &                           )
         ELSE 
            DO II=1,M
              LRB%Q(II,1:N) =
@@ -2180,32 +2141,27 @@ C
            LRB%K = -1
         END IF
       END DO
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO 
 #endif
-#if defined(BLR_MT)
-!$      OMP_NUM = OMP_GET_THREAD_NUM()
-!$      IF (OMP_NUM.EQ.0) THEN
+#if ! defined(BLR_NOOPENMP)
+!$OMP MASTER
 #endif
-        CALL UPD_MRY_CB(NROWS, NCOLS, SYM, NIV,
-     &                        FRONT_CB_BLR_SAVINGS)
-#if defined(BLR_MT)
-!$      ELSE
-!$        CALL UPD_MRY_CB(0, 0, SYM, NIV,
-!$   &                        FRONT_CB_BLR_SAVINGS)
-!$      ENDIF
+      CALL UPD_MRY_CB_FR(NROWS, NCOLS, SYM)
+#if ! defined(BLR_NOOPENMP)
+!$OMP END MASTER
 #endif
       END SUBROUTINE CMUMPS_COMPRESS_CB
       SUBROUTINE CMUMPS_COMPRESS_PANEL(
      &        A, LA, POSELT, IFLAG, IERROR, NFRONT,
-     &        BEGS_BLR, NB_BLR, TOLEPS, TOL_OPT, K473, BLR_PANEL, 
+     &        BEGS_BLR, NB_BLR, TOLEPS, TOL_OPT, K458, K473, BLR_PANEL,
      &        CURRENT_BLR,
      &        DIR, WORK, TAU, JPVT, 
      &        LWORK, RWORK, BLOCK,
      &        MAXI_CLUSTER, NELIM, 
      &        LBANDSLAVE, NPIV, ISHIFT, NIV, KPERCENT, 
-     &        KEEP8, K480,
-     &        BEG_I_IN, END_I_IN, FRSWAP
+     &        KEEP8,
+     &        K480, BEG_I_IN, END_I_IN, FRSWAP
      &        )
 !$    USE OMP_LIB
       INTEGER(8), intent(in)       :: LA
@@ -2223,13 +2179,12 @@ C
       INTEGER, OPTIONAL, intent(in) :: K480
       INTEGER,OPTIONAL,intent(in) :: BEG_I_IN, END_I_IN
       LOGICAL, OPTIONAL, intent(in) :: FRSWAP
-      INTEGER, intent(in)          :: NPIV, ISHIFT, KPERCENT, K473,
-     &                                TOL_OPT
+      INTEGER, intent(in)          :: NPIV, ISHIFT, KPERCENT,
+     &                                K458, K473, TOL_OPT
       LOGICAL, intent(in)          :: LBANDSLAVE
       INTEGER                      :: MAXI_CLUSTER, LWORK, NELIM
       REAL,intent(in)              :: TOLEPS
       CHARACTER(len=1) :: DIR
-      INTRINSIC maxval
       INTEGER :: IP, NB_BLOCKS_PANEL, M, N, RANK, MAXRANK
       INTEGER :: INFO, I, J, IS, BEG_I, END_I
       INTEGER(8) :: POSELT_BLOCK
@@ -2242,7 +2197,7 @@ C
       COMPLEX, POINTER, DIMENSION(:,:) :: BLOCK_THR
       COMPLEX, POINTER, DIMENSION(:) :: WORK_THR, TAU_THR
       INTEGER, POINTER, DIMENSION(:) :: JPVT_THR
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       IF(present(BEG_I_IN)) THEN
@@ -2274,14 +2229,14 @@ C
       END IF
       NB_BLOCKS_PANEL = NB_BLR-CURRENT_BLR
       OMP_NUM = 0 
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO PRIVATE(INFO, POSELT_BLOCK, RANK, MAXRANK, I, J, OMP_NUM)
 !$OMP&   SCHEDULE(DYNAMIC,CHUNK)
 #endif
       DO IP = BEG_I, END_I
         IF (IFLAG.LT.0) CYCLE
-#if defined(BLR_MT)         
+#if ! defined(BLR_NOOPENMP)
         OMP_NUM = 0 
 !$      OMP_NUM = OMP_GET_THREAD_NUM()
 #endif
@@ -2333,10 +2288,11 @@ C
         ENDIF
         ENDIF
         JPVT_THR(1:MAXI_CLUSTER) = 0
-        IF (K473.EQ.1) THEN
+        IF (K473.EQ.1 .OR. IP .LT. BEG_I+K458) THEN
             MAXRANK = 1
             RANK = MAXRANK+1
             INFO = 0
+            ISLR = .FALSE.
             GOTO 3800
         ENDIF
         IF (DIR .eq. 'V') THEN
@@ -2360,18 +2316,20 @@ C
      &       TAU_THR(1), 
      &       WORK_THR(1), N, 
      &       RWORK_THR(1), 
-     &       TOLEPS, TOL_OPT, RANK, MAXRANK, INFO)
+     &       TOLEPS, TOL_OPT, RANK, MAXRANK, INFO,
+     &       ISLR)
  3800 CONTINUE
-      IF (INFO < 0) THEN
+        IF (INFO < 0) THEN
            WRITE(*,*) " PROBLEM IN ARGUMENT NUMBER ",INFO,
      &                 " OF TRUNCATED_RRQR WHILE COMPRESSING A BLOCK "
            CALL MUMPS_ABORT()
         END IF
-        ISLR = ((RANK.LE.MAXRANK).AND.(M.NE.0).AND.(N.NE.0))     
         CALL ALLOC_LRB(BLR_PANEL(IP-CURRENT_BLR), RANK,
      &                 M, N, ISLR, IFLAG, IERROR, KEEP8)
         IF (IFLAG.LT.0) CYCLE
-        IF ((M.EQ.0).OR.(N.EQ.0)) GOTO 3000
+        IF ((M.EQ.0).OR.(N.EQ.0)) THEN
+          GOTO 3000
+        ENDIF
         IF (ISLR) THEN 
            IF (RANK .EQ. 0) THEN 
            ELSE 
@@ -2430,9 +2388,10 @@ C
         END IF
  3000   CONTINUE
       END DO 
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO NOWAIT
 #endif
+      RETURN
       END SUBROUTINE CMUMPS_COMPRESS_PANEL
       SUBROUTINE CMUMPS_BLR_PANEL_LRTRSM(
      &                A,
@@ -2456,7 +2415,7 @@ C
       INTEGER, OPTIONAL :: IW(*)
       INTEGER(8) :: POSELT_LOCAL
       INTEGER    :: IP, LDA
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
       INTEGER :: CHUNK
 #endif
       COMPLEX :: ONE, MONE, ZERO
@@ -2478,7 +2437,7 @@ C
         POSELT_LOCAL = POSELT + 
      &      int(IBEG_BLOCK-1,8)*int(LDA,8) + int(IBEG_BLOCK - 1,8)
       ENDIF
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
       CHUNK = 1
 !$OMP DO 
 !$OMP& SCHEDULE(DYNAMIC,CHUNK)
@@ -2488,7 +2447,7 @@ C
      &             BLR_LorU(IP-CURRENT_BLR), NIV, SYM, LorU,
      &             IW, OFFSET_IW) 
       END DO
-#if defined(BLR_MT) 
+#if ! defined(BLR_NOOPENMP)
 !$OMP END DO NOWAIT
 #endif          
       END SUBROUTINE CMUMPS_BLR_PANEL_LRTRSM

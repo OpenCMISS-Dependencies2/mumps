@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -26,6 +26,7 @@ C
      &    FILS, DAD,
      &    LPTRAR, NELT, FRTPTR, FRTELT, 
      &    PTRARW, PTRAIW,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
      &    INTARR, DBLARR, ICNTL, KEEP, KEEP8, DKEEP, ND)
       USE DMUMPS_LOAD
       USE DMUMPS_OOC        
@@ -60,6 +61,10 @@ C
       INTEGER LPTRAR, NELT
       INTEGER FRTPTR( N+1 ), FRTELT( NELT )
       INTEGER(8), INTENT(IN) :: PTRARW(LPTRAR), PTRAIW(LPTRAR)
+      INTEGER(8), INTENT(IN) :: PTR8ARR(KEEP(193))
+      INTEGER, INTENT(IN) :: NINCOLARR(KEEP(194))
+      INTEGER, INTENT(IN) :: NINROWARR(KEEP(195))
+      INTEGER, INTENT(IN) :: PTRDEBARR(KEEP(196))
       DOUBLE PRECISION :: RHS_MUMPS(KEEP(255))
       INTEGER INTARR(KEEP8(27))
       DOUBLE PRECISION DBLARR(KEEP8(26))
@@ -104,12 +109,12 @@ C
           LREQI=6+2*TOT_ROOT_SIZE+KEEP(IXSZ)
           LREQA=0_8
           IF ( IWPOS + LREQI - 1. GT. IWPOSCB ) THEN
-           CALL DMUMPS_COMPRE_NEW( N, KEEP(28), IW, LIW, A, LA,
+           CALL DMUMPS_COMPRE_NEW( N, KEEP, IW, LIW, A, LA,
      &           LRLU, IPTRLU,
      &           IWPOS, IWPOSCB, PTRIST, PTRAST,
-     &           STEP, PIMASTER, PAMASTER, KEEP(216),LRLUS,
+     &           STEP, PIMASTER, PAMASTER, LRLUS,
      &           KEEP(IXSZ),COMP,DKEEP(97),
-     &           MYID, SLAVEF, KEEP(199), PROCNODE_STEPS, DAD )
+     &           MYID, SLAVEF, PROCNODE_STEPS, DAD )
            IF ( LRLU .NE. LRLUS ) THEN
                   WRITE(*,*) 'PB1 compress root2slave:LRLU,LRLUS=',
      &            LRLU, LRLUS
@@ -148,9 +153,11 @@ C
      &      root%SCHUR_LLD, root%SCHUR_MLOC, root%SCHUR_NLOC,
      &      KEEP)
             IF (KEEP(55).EQ.0) THEN
-              CALL DMUMPS_ASM_ARR_ROOT( N, root, IROOT,
+              CALL DMUMPS_ASM_ARR_ROOT( N, root, IROOT, STEP(IROOT),
      &        root%SCHUR_POINTER(1), root%SCHUR_LLD, root%SCHUR_MLOC,
-     &        root%SCHUR_NLOC, FILS, PTRAIW, PTRARW, INTARR, DBLARR,
+     &        root%SCHUR_NLOC, FILS,
+     &        KEEP, PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &        INTARR, DBLARR,
      &        KEEP8(27), KEEP8(26), MYID )
             ELSE
               CALL DMUMPS_ASM_ELT_ROOT(N, root,
@@ -171,10 +178,10 @@ C
         CALL DMUMPS_GET_SIZE_NEEDED( 
      &           LREQI , LREQA, .FALSE.,
      &           KEEP(1), KEEP8(1),
-     &           N, KEEP(28), IW, LIW, A, LA,
+     &           N, IW, LIW, A, LA,
      &           LRLU, IPTRLU,
      &           IWPOS, IWPOSCB, PTRIST, PTRAST,
-     &           STEP, PIMASTER, PAMASTER, KEEP(216), LRLUS,
+     &           STEP, PIMASTER, PAMASTER, LRLUS,
      &           KEEP(IXSZ), COMP, DKEEP(97),
      &           MYID, SLAVEF, PROCNODE_STEPS, DAD, 
      &           IFLAG, IERROR )
@@ -216,10 +223,12 @@ C
           CALL DMUMPS_SET_TO_ZERO(A(PTRAST(STEP(IROOT))),
      &    NEW_LOCAL_M, NEW_LOCAL_M, NEW_LOCAL_N, KEEP)
           IF (KEEP(55) .EQ.0 ) THEN
-            CALL DMUMPS_ASM_ARR_ROOT( N, root, IROOT,
+            CALL DMUMPS_ASM_ARR_ROOT( N, root, IROOT, STEP(IROOT),
      &      A(PTRAST(STEP(IROOT))),
      &      NEW_LOCAL_M, NEW_LOCAL_M, NEW_LOCAL_N,
-     &      FILS, PTRAIW, PTRARW, INTARR, DBLARR,
+     &      FILS,
+     &      KEEP, PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &      INTARR, DBLARR,
      &      KEEP8(27), KEEP8(26), MYID )
           ELSE
             CALL DMUMPS_ASM_ELT_ROOT( N, root,

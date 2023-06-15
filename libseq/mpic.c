@@ -1,10 +1,10 @@
 /*
  *
- *  This file is part of MUMPS 5.4.1, released
- *  on Tue Aug  3 09:49:43 UTC 2021
+ *  This file is part of MUMPS 5.6.0, released
+ *  on Wed Apr 19 15:50:57 UTC 2023
  *
  *
- *  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+ *  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
  *  Mumps Technologies, University of Bordeaux.
  *
  *  This version of MUMPS is provided to you free of charge. It is
@@ -14,12 +14,18 @@
  *
  */
 #include "mpi.h"
+#include "elapse.h"
+MPI_Comm LIBSEQ_CALL MPI_Comm_f2c(LIBSEQ_INT comm)
+{
+  return 0;
+}
+
 LIBSEQ_INT LIBSEQ_CALL MPI_Init(LIBSEQ_INT *pargc, char ***pargv)
 {
   return 0;
 }
 
-LIBSEQ_INT LIBSEQ_CALL MPI_Comm_rank( MPI_Comm comm, LIBSEQ_INT *rank)
+LIBSEQ_INT LIBSEQ_CALL MPI_Comm_rank(MPI_Comm comm, LIBSEQ_INT *rank)
 {
   *rank=0;
   return 0;
@@ -55,3 +61,10 @@ void LIBSEQ_CALL mumps_checkaddrequal__(char *a, char*b, LIBSEQ_INT *i)
  {
    MUMPS_CHECKADDREQUAL(a,b,i);
  }
+
+double LIBSEQ_CALL MPI_Wtime()
+{
+  double val;
+  mumps_elapse(&val);
+  return val;
+}

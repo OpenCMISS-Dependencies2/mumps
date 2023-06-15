@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -42,9 +42,7 @@ C
      &                    FLOP_ACCUM_COMPRESS,
      &                    FLOP_DECOMPRESS,
      &                    FLOP_CB_DECOMPRESS,
-     &                    FLOP_FRFRONTS,
-     &                    FLOP_SOLFWD_FR,
-     &                    FLOP_SOLFWD_LR
+     &                    FLOP_FRFRONTS
       DOUBLE PRECISION :: FACTOR_PROCESSED_FRACTION
       INTEGER(KIND=8)  :: FACTOR_SIZE
       DOUBLE PRECISION :: TOTAL_FLOP
@@ -70,11 +68,13 @@ C
       DOUBLE PRECISION :: TIME_DIAGCOPY
       DOUBLE PRECISION :: TIME_DECOMP
       DOUBLE PRECISION :: TIME_DECOMP_UCFS
-      DOUBLE PRECISION :: TIME_DECOMP_ASM1
-      DOUBLE PRECISION :: TIME_DECOMP_LOCASM2
-      DOUBLE PRECISION :: TIME_DECOMP_MAPLIG1
-      DOUBLE PRECISION :: TIME_DECOMP_ASMS2S
-      DOUBLE PRECISION :: TIME_DECOMP_ASMS2M
+      DOUBLE PRECISION :: TIME_LRASM_NIV1
+      DOUBLE PRECISION :: TIME_LRASM_LOCASM2
+      DOUBLE PRECISION :: TIME_LRASM_MAPLIG1
+      DOUBLE PRECISION :: TIME_LRASM_CONTRIB2
+      DOUBLE PRECISION :: TIME_FRASM_LOCASM2
+      DOUBLE PRECISION :: TIME_FRASM_MAPLIG1
+      DOUBLE PRECISION :: TIME_FRASM_CONTRIB2
       DOUBLE PRECISION :: TIME_LRANA_LRGROUPING
       DOUBLE PRECISION :: TIME_LRANA_SEPGROUPING
       DOUBLE PRECISION :: TIME_LRANA_GETHALO
@@ -371,8 +371,6 @@ C
         FLOP_PANEL = 0.D0
         FLOP_TRSM = 0.D0
         FLOP_FRFRONTS = 0.D0
-        FLOP_SOLFWD_FR = 0.D0
-        FLOP_SOLFWD_LR = 0.D0
         TOTAL_NBLOCKS_ASS = 0
         TOTAL_NBLOCKS_CB = 0
         AVG_BLOCKSIZE_ASS = 0.D0
@@ -404,11 +402,13 @@ C
         TIME_FRSWAP_COMPRESS = 0.D0 
         TIME_DECOMP = 0.D0 
         TIME_DECOMP_UCFS = 0.D0 
-        TIME_DECOMP_ASM1 = 0.D0 
-        TIME_DECOMP_LOCASM2 = 0.D0 
-        TIME_DECOMP_MAPLIG1 = 0.D0 
-        TIME_DECOMP_ASMS2S = 0.D0 
-        TIME_DECOMP_ASMS2M = 0.D0 
+        TIME_LRASM_NIV1 = 0.D0 
+        TIME_LRASM_LOCASM2 = 0.D0 
+        TIME_LRASM_MAPLIG1 = 0.D0 
+        TIME_LRASM_CONTRIB2 = 0.D0 
+        TIME_FRASM_LOCASM2 = 0.D0 
+        TIME_FRASM_MAPLIG1 = 0.D0 
+        TIME_FRASM_CONTRIB2 = 0.D0 
       END SUBROUTINE INIT_STATS_GLOBAL
       SUBROUTINE UPD_MRY_LU_FR(NASS, NCB, SYM, NELIM)
         INTEGER,INTENT(IN) :: NASS, NCB, SYM, NELIM
@@ -427,10 +427,9 @@ C
 !$OMP   END ATOMIC
       RETURN
       END SUBROUTINE UPD_MRY_LU_FR
-      SUBROUTINE UPD_MRY_CB(NROWS, NCOLS,
-     &                       SYM, NIV, LRGAIN)
-        INTEGER,INTENT(IN) :: NROWS, NCOLS, SYM, NIV, LRGAIN
-        DOUBLE PRECISION :: MRY, LRGAIND
+      SUBROUTINE UPD_MRY_CB_FR(NROWS, NCOLS, SYM)
+        INTEGER,INTENT(IN) :: NROWS, NCOLS, SYM
+        DOUBLE PRECISION :: MRY
         IF (SYM.EQ.0) THEN
           MRY = dble(NCOLS)*dble(NROWS)
         ELSE
@@ -440,39 +439,26 @@ C
 !$OMP   ATOMIC UPDATE
         MRY_CB_FR = MRY_CB_FR + MRY
 !$OMP   END ATOMIC
-        LRGAIND=dble(LRGAIN)
+        RETURN
+      END SUBROUTINE UPD_MRY_CB_FR
+      SUBROUTINE UPD_MRY_CB_LRGAIN(LRB
+     &                            )
+        TYPE(LRB_TYPE),  INTENT(IN) :: LRB
+        DOUBLE PRECISION :: LRGAIND
+        LRGAIND = dble(LRB%M*LRB%N-(LRB%M+LRB%N)*LRB%K)
 !$OMP   ATOMIC UPDATE
         MRY_CB_LRGAIN = MRY_CB_LRGAIN + LRGAIND
 !$OMP   END ATOMIC
         RETURN
-      END SUBROUTINE UPD_MRY_CB
-      SUBROUTINE UPD_MRY_LU_LRGAIN(BLR_PANEL, NB_INASM,
-     &                NB_INCB, DIR)
-        INTEGER,INTENT(IN) :: NB_INASM, NB_INCB
+      END SUBROUTINE UPD_MRY_CB_LRGAIN
+      SUBROUTINE UPD_MRY_LU_LRGAIN( BLR_PANEL, NBBLOCKS
+     &           )
+        INTEGER,INTENT(IN) :: NBBLOCKS
         TYPE(LRB_TYPE),  INTENT(IN) :: BLR_PANEL(:)
-        CHARACTER(len=1) :: DIR
-        DOUBLE PRECISION :: FLOPFR, FLOPLR, MRY
+        DOUBLE PRECISION :: MRY
         INTEGER :: I
-        FLOPFR = 0.0D0
-        FLOPLR = 0.0D0
         MRY    = 0.0D0
-        IF (NB_INASM.GT.0.AND.DIR .EQ.'V') THEN
-          FLOPFR = FLOPFR + dble(BLR_PANEL(1)%N)*dble(BLR_PANEL(1)%N-1)
-          FLOPLR = FLOPLR + dble(BLR_PANEL(1)%N)*dble(BLR_PANEL(1)%N-1)
-        ENDIF
-        DO I = 1, NB_INASM+NB_INCB
-          IF (DIR .EQ. 'V') THEN
-            FLOPFR = FLOPFR + 
-     &          2.0D0*dble(BLR_PANEL(I)%M)*dble(BLR_PANEL(I)%N) 
-            IF (BLR_PANEL(I)%ISLR) THEN
-              FLOPLR = FLOPLR + 
-     &              2.0D0*dble((BLR_PANEL(I)%M+BLR_PANEL(I)%N)
-     &                         *BLR_PANEL(I)%K)
-            ELSE
-              FLOPLR = FLOPLR + 
-     &          2.0D0*dble(BLR_PANEL(I)%M*BLR_PANEL(I)%N) 
-            ENDIF
-          ENDIF
+        DO I = 1, NBBLOCKS
           IF (BLR_PANEL(I)%ISLR) THEN
             MRY = MRY + dble(BLR_PANEL(I)%M*BLR_PANEL(I)%N 
      &            - BLR_PANEL(I)%K*(BLR_PANEL(I)%M + BLR_PANEL(I)%N)) 
@@ -590,20 +576,24 @@ C
       SUBROUTINE SAVEandWRITE_GAINS(LOCAL, K489, DKEEP, N, 
      &         ICNTL36,
      &         DEPTH, BCKSZ, NASSMIN, NFRONTMIN, SYM, K486,
-     &         K472, K475, K478, K480, K481, K483, K484, 
+     &         NBTHREADS, K472, K475, K478, K480, K481, K483, K484, 
      &         K8110, K849, 
      &         NBTREENODES, NPROCS, MPG, PROKG)
         INTEGER, INTENT(IN) :: LOCAL,K489,DEPTH, N,
      &      ICNTL36, BCKSZ,NASSMIN,
      &      NFRONTMIN, K486, NBTREENODES, MPG, 
-     &      K472, K475, K478, K480, K481, K483, K484, 
+     &      NBTHREADS, K472, K475, K478, K480, K481, K483, K484, 
      &      SYM, NPROCS
         INTEGER(8), INTENT(IN) :: K8110, K849
         LOGICAL, INTENT(IN) :: PROKG
         DOUBLE PRECISION :: DKEEP(230)
-        LOGICAL PROK
-        PROK = (PROKG.AND.(MPG.GE.0))
-        IF (PROK) THEN
+        TIME_UPDATE_LRLR1    = TIME_UPDATE_LRLR1/dble(NBTHREADS)
+        TIME_UPDATE_LRLR2    = TIME_UPDATE_LRLR2/dble(NBTHREADS)
+        TIME_UPDATE_LRLR3    = TIME_UPDATE_LRLR3/dble(NBTHREADS)
+        TIME_UPDATE_FRLR     = TIME_UPDATE_FRLR/dble(NBTHREADS)
+        TIME_UPDATE_FRFR     = TIME_UPDATE_FRFR/dble(NBTHREADS)
+        TIME_MIDBLK_COMPRESS = TIME_MIDBLK_COMPRESS/dble(NBTHREADS)
+        IF (PROKG) THEN
         WRITE(MPG,'(/A,A)') 
      & '-------------- Beginning of BLR statistics -------------------',
      & '--------------'
@@ -618,10 +608,10 @@ C
      &    '     Number of BLR fronts                     = ',
      &                          CNT_NODES
         ENDIF  
-        IF (PROK) WRITE(MPG,'(A,F8.1,A)')
+        IF (PROKG) WRITE(MPG,'(A,F8.1,A)')
      &    '     Fraction of factors in BLR fronts        =',
      &                FACTOR_PROCESSED_FRACTION,'% ' 
-        IF (PROK) THEN
+        IF (PROKG) THEN
           WRITE(MPG,'(A)') 
      &  '     Statistics on the number of entries in factors :'
           WRITE(MPG,'(A,ES10.3,A,F5.1,A)') 
@@ -633,14 +623,14 @@ C
      &     ,dble(100)*(dble(K849)/dble(max(K8110,1_8)))
      &     ,'%)'
         ENDIF
-        IF (PROK) WRITE(MPG,'(A)')
+        IF (PROKG) WRITE(MPG,'(A)')
      &  '     Statistics on operation counts (OPC):'
         TOTAL_FLOP = MAX(TOTAL_FLOP,EPSILON(1.0D0))
         DKEEP(55)=dble(TOTAL_FLOP)
         DKEEP(60)=dble(100)
         DKEEP(56)=dble(FLOP_FACTO_LR+FLOP_FRFRONTS)
         DKEEP(61)=dble(100*(FLOP_FACTO_LR+FLOP_FRFRONTS)/TOTAL_FLOP)
-        IF (PROK) THEN 
+        IF (PROKG) THEN 
         WRITE(MPG,'(A,ES10.3,A,F5.1,A)') 
      &  '     RINFOG(3) Total theoretical operations counts       ='
      &     ,TOTAL_FLOP,' (',100*TOTAL_FLOP/TOTAL_FLOP,'%)'
@@ -650,7 +640,7 @@ C
      &,100*(FLOP_FACTO_LR+FLOP_FRFRONTS)/TOTAL_FLOP
      &,'%)'
         ENDIF
-      IF (PROK) WRITE(MPG,'(A,A)') 
+      IF (PROKG) WRITE(MPG,'(A,A)') 
      & '-------------- End of BLR statistics -------------------------',
      & '--------------'
       RETURN

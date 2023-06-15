@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -22,12 +22,14 @@ C
      &
      &    PTLUST_S, PTRFAC, root, OPASSW, OPELIW,
      &    ITLOC, RHS_MUMPS, FILS, DAD,
-     &    PTRARW, PTRAIW, INTARR, DBLARR,
+     &    PTRARW, PTRAIW,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &    INTARR, DBLARR,
      &    ICNTL,KEEP,KEEP8,DKEEP,IPOOL, LPOOL, LEAF, ND, FRERE_STEPS,
      &    LPTRAR, NELT, FRTPTR, FRTELT, 
-     &    ISTEP_TO_INIV2, TAB_POS_IN_PERE 
+     &    ISTEP_TO_INIV2, TAB_POS_IN_PERE
      &               , LRGROUPS
-     &     )
+     &    )
       USE CMUMPS_BUF
       USE CMUMPS_LOAD
       USE CMUMPS_LR_CORE
@@ -36,9 +38,8 @@ C
       USE CMUMPS_LR_DATA_M
       USE CMUMPS_STRUC_DEF, ONLY : CMUMPS_ROOT_STRUC
       USE CMUMPS_DYNAMIC_MEMORY_M, ONLY : CMUMPS_DM_SET_DYNPTR
-      USE CMUMPS_FAC_FRONT_AUX_M, 
-     &                ONLY : CMUMPS_COMPUTE_SIZE_SCHUR_IN_FRONT
-#if defined(BLR_MT)
+      USE CMUMPS_FAC_FRONT_AUX_M, ONLY : CMUMPS_GET_SIZE_SCHUR_IN_FRONT
+#if ! defined(BLR_NOOPENMP)
 !$    USE OMP_LIB
 #endif
       IMPLICIT NONE
@@ -61,10 +62,14 @@ C
       INTEGER PERM(N), STEP(N), PIMASTER(KEEP(28))
       INTEGER IW( LIW )
       COMPLEX A( LA )
-      INTEGER, intent(in) :: LRGROUPS(N)
+      INTEGER, intent(in) :: LRGROUPS(KEEP(280))
       INTEGER NELT, LPTRAR
       INTEGER FRTPTR( N + 1 ), FRTELT( NELT )
       INTEGER(8), INTENT(IN) :: PTRAIW( LPTRAR ), PTRARW( LPTRAR )
+      INTEGER(8), INTENT(IN) :: PTR8ARR(KEEP(193))
+      INTEGER, INTENT(IN) :: NINCOLARR(KEEP(194))
+      INTEGER, INTENT(IN) :: NINROWARR(KEEP(195))
+      INTEGER, INTENT(IN) :: PTRDEBARR(KEEP(196))
       INTEGER ISTEP_TO_INIV2(KEEP(71)), 
      &        TAB_POS_IN_PERE(SLAVEF+2,max(1,KEEP(56)))
       INTEGER COMM, MYID
@@ -93,7 +98,7 @@ C
       INTEGER NSLAVES_TOT, HS, DEST, NSLAVES_FOLLOW
       INTEGER FPERE
       INTEGER(8) CPOS, LPOS
-      LOGICAL DYNAMIC
+      LOGICAL DYNAMIC_ALLOC
       LOGICAL BLOCKING, SET_IRECV, MESSAGE_RECEIVED
       INTEGER allocok
       INTEGER LR_ACTIVATED_INT
@@ -113,14 +118,14 @@ C
       REAL,ALLOCATABLE,DIMENSION(:) :: RWORK
       INTEGER :: OMP_NUM, LWORK
       INTEGER :: II,JJ
-       INTEGER :: NFS4FATHER, NASS1, NELIM, INFO_TMP(2)
-       INTEGER :: NVSCHUR_K253, NSLAVES_L, IROW_L
-       INTEGER :: NBROWSinF
-       REAL, ALLOCATABLE, DIMENSION(:) :: M_ARRAY
+      INTEGER :: NFS4FATHER, NASS1, NELIM, INFO_TMP(2)
+      INTEGER :: NVSCHUR_K253, NSLAVES_L, IROW_L
+      INTEGER :: NBROWSinF
+      REAL, ALLOCATABLE, DIMENSION(:) :: M_ARRAY
       COMPLEX, ALLOCATABLE, DIMENSION(:) :: UDYNAMIC
       COMPLEX ONE,ALPHA
       PARAMETER (ONE=(1.0E0,0.0E0), ALPHA=(-1.0E0,0.0E0))
-      DYNAMIC = .FALSE.
+      DYNAMIC_ALLOC = .FALSE.
       POSITION  = 0
       CALL MPI_UNPACK( BUFR, LBUFR_BYTES, POSITION, INODE, 1,
      &                 MPI_INTEGER, COMM, IERR )
@@ -169,10 +174,10 @@ C
       CALL CMUMPS_GET_SIZE_NEEDED(
      &        0, LAELL, .FALSE.,
      &        KEEP(1), KEEP8(1),
-     &        N, KEEP(28), IW, LIW, A, LA,
+     &        N, IW, LIW, A, LA,
      &        LRLU, IPTRLU,
      &        IWPOS, IWPOSCB, PTRIST, PTRAST,
-     &        STEP, PIMASTER, PAMASTER, KEEP(216),LRLUS,
+     &        STEP, PIMASTER, PAMASTER, LRLUS,
      &        KEEP(IXSZ),COMP,DKEEP(97),MYID, SLAVEF,
      &        PROCNODE_STEPS, DAD, 
      &        IFLAG, IERROR)
@@ -191,16 +196,16 @@ C
      &                 MPI_COMPLEX,
      &                 COMM, IERR )
       ENDIF
-      IF (PTRIST(STEP( INODE )) .EQ. 0) DYNAMIC = .TRUE.
+      IF (PTRIST(STEP( INODE )) .EQ. 0) DYNAMIC_ALLOC = .TRUE.
       IF ( (PTRIST(STEP( INODE )).NE.0) .AND.
      &  (IPOSK + NPIV -1 .GT.
      &   IW(PTRIST(STEP(INODE))+3+KEEP(IXSZ))) )THEN
-        DYNAMIC = .TRUE.
+        DYNAMIC_ALLOC = .TRUE.
       ENDIF
       IF (LR_ACTIVATED) THEN
-       DYNAMIC = .FALSE.
+       DYNAMIC_ALLOC = .FALSE.
       ENDIF
-      IF (DYNAMIC)  THEN
+      IF (DYNAMIC_ALLOC)  THEN
         ALLOCATE(UDYNAMIC(LAELL), stat=allocok)
         if (allocok .GT. 0) THEN
           IFLAG = -13 
@@ -215,24 +220,22 @@ C
       CALL CMUMPS_LOAD_MEM_UPDATE(.FALSE.,.FALSE.,
      &          LA-LRLUS,0_8,-LAELL,KEEP,KEEP8,LRLUS)
       ENDIF
-      IF ( PTRIST(STEP(INODE)) .EQ. 0 ) THEN
-        CALL CMUMPS_TREAT_DESCBAND(INODE, COMM_LOAD,
-     &    ASS_IRECV, 
-     &    BUFR, LBUFR, LBUFR_BYTES, PROCNODE_STEPS, POSFAC,
-     &    IWPOS, IWPOSCB, IPTRLU,
-     &    LRLU, LRLUS, N, IW, LIW, A, LA, PTRIST,
-     &    PTLUST_S, PTRFAC,
-     &    PTRAST, STEP, PIMASTER, PAMASTER, NSTK_S, COMP,
-     &    IFLAG, IERROR, COMM,
-     &    PERM,
-     &    IPOOL, LPOOL, LEAF,
-     &    NBFIN, MYID, SLAVEF,
+      IF (PTRIST(STEP( INODE )) .EQ. 0) THEN
+          CALL CMUMPS_TREAT_DESCBAND( INODE, COMM_LOAD, ASS_IRECV,
+     &      BUFR, LBUFR, LBUFR_BYTES, PROCNODE_STEPS, POSFAC,
+     &      IWPOS, IWPOSCB, IPTRLU,
+     &      LRLU, LRLUS, N, IW, LIW, A, LA, PTRIST,
+     &      PTLUST_S, PTRFAC,
+     &      PTRAST, STEP, PIMASTER, PAMASTER, NSTK_S, COMP,
+     &      IFLAG, IERROR, COMM,
+     &      PERM, IPOOL, LPOOL, LEAF, NBFIN, MYID, SLAVEF,
      &
-     &    root, OPASSW, OPELIW, ITLOC, RHS_MUMPS,
-     &    FILS, DAD, PTRARW, PTRAIW,
-     &    INTARR, DBLARR, ICNTL, KEEP,KEEP8,DKEEP, ND, FRERE_STEPS,
-     &    LPTRAR, NELT, FRTPTR, FRTELT, 
-     &    ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE. 
+     &      root, OPASSW, OPELIW, ITLOC, RHS_MUMPS,
+     &      FILS, DAD, PTRARW, PTRAIW,
+     &      PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
+     &      INTARR, DBLARR, ICNTL,KEEP,KEEP8,DKEEP,ND, FRERE_STEPS,
+     &      LPTRAR, NELT, FRTPTR, FRTELT, 
+     &      ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE.
      &               , LRGROUPS
      &     )
         IF ( IFLAG .LT. 0 ) GOTO 600
@@ -241,8 +244,8 @@ C
      &            IW( PTRIST(STEP( INODE )) + 3 +KEEP(IXSZ)) )
         MSGSOU = MUMPS_PROCNODE( PROCNODE_STEPS(STEP(INODE)),
      &                           KEEP(199) )
-        SET_IRECV = .FALSE.
         BLOCKING  = .TRUE.
+        SET_IRECV = .FALSE.
         MESSAGE_RECEIVED = .FALSE.
         CALL CMUMPS_TRY_RECVTREAT( COMM_LOAD,
      &    ASS_IRECV, BLOCKING, SET_IRECV, MESSAGE_RECEIVED,
@@ -257,6 +260,7 @@ C
      &
      &    root, OPASSW, OPELIW, ITLOC, RHS_MUMPS,
      &    FILS, DAD, PTRARW, PTRAIW,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
      &    INTARR, DBLARR, ICNTL, KEEP,KEEP8,DKEEP, ND, FRERE_STEPS,
      &    LPTRAR, NELT, FRTPTR, FRTELT,
      &    ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE.
@@ -281,6 +285,7 @@ C
      &
      &    root, OPASSW, OPELIW, ITLOC, RHS_MUMPS,
      &    FILS, DAD, PTRARW, PTRAIW,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
      &    INTARR, DBLARR, ICNTL, KEEP,KEEP8,DKEEP, ND, FRERE_STEPS,
      &    LPTRAR, NELT, FRTPTR, FRTELT, 
      &    ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE. 
@@ -300,7 +305,7 @@ C
          CALL CMUMPS_BLR_DEC_AND_RETRIEVE_L (IW(IOLDPS+XXF), IPANEL, 
      &        BEGS_BLR_LS, BLR_LS)
          NB_BLR_LS = size(BEGS_BLR_LS)-2   
-#if defined(BLR_MT)          
+#if ! defined(BLR_NOOPENMP)
 !$OMP PARALLEL
 #endif
          CALL CMUMPS_BLR_UPDATE_TRAILING_I (
@@ -318,22 +323,22 @@ C
      &        1,
      &        KEEP(481), DKEEP(11), KEEP(466), KEEP(477) 
      &         )
-#if defined(BLR_MT)          
+#if ! defined(BLR_NOOPENMP)
 !$OMP END PARALLEL
 #endif          
-          CALL DEALLOC_BLR_PANEL (BLR_U, NB_BLR_U, KEEP8)
+          CALL DEALLOC_BLR_PANEL(BLR_U, NB_BLR_U, KEEP8, KEEP(34))
           IF (allocated(BLR_U)) DEALLOCATE(BLR_U)
           IF (associated(BEGS_BLR_U)) DEALLOCATE(BEGS_BLR_U)
           IF (IFLAG.LT.0) GOTO 700
          IF (KEEP(486).EQ.3) THEN
          CALL CMUMPS_BLR_TRY_FREE_PANEL(IW(IOLDPS+XXF), IPANEL, 
-     &                            KEEP8) 
+     &                            KEEP8, KEEP(34)) 
          ENDIF
       ELSE
       CPOS = POSELT + int(JPOSK - 1,8)
       LPOS = POSELT + int(IPOSK - 1,8)
       IF ( NPIV .GT. 0 ) THEN
-          IF (DYNAMIC) THEN
+          IF (DYNAMIC_ALLOC) THEN
             CALL cgemm( 'T', 'N', NCOLU, NROW1, NPIV, ALPHA,
      &            UDYNAMIC(1), NPIV,
      &            A_PTR( LPOS ), NCOL1, ONE,
@@ -358,7 +363,7 @@ C
       IW(IOLDPS+6+KEEP(IXSZ)) =
      &         IW(IOLDPS+6+KEEP(IXSZ)) + 1
       IF (.NOT.LR_ACTIVATED) THEN
-      IF (DYNAMIC) THEN
+      IF (DYNAMIC_ALLOC) THEN
        DEALLOCATE(UDYNAMIC)
       ELSE
         LRLU  = LRLU + LAELL
@@ -407,6 +412,8 @@ C
               ENDIF
               DO II=1,NB_BLR_LS
               DO JJ=1,NB_BLR_COL-NPARTSASS_MASTER
+                CB_LRB(II,JJ)%M=0
+                CB_LRB(II,JJ)%N=0
                 NULLIFY(CB_LRB(II,JJ)%Q)
                 NULLIFY(CB_LRB(II,JJ)%R)
                 CB_LRB(II,JJ)%ISLR = .FALSE.
@@ -419,7 +426,7 @@ C
      &         MAXI_CLUSTER_COL+NELIM,NPIV)
               LWORK = MAXI_CLUSTER*MAXI_CLUSTER
               OMP_NUM = 1
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$            OMP_NUM = OMP_GET_MAX_THREADS()
 #endif
               ALLOCATE(BLOCKLR(MAXI_CLUSTER, OMP_NUM*MAXI_CLUSTER),
@@ -465,7 +472,7 @@ C
                  NSLAVES_L = IW(PTRIST(STEP(INODE)) + 5 + KEEP(IXSZ))
                  IROW_L    = PTRIST(STEP(INODE)) + 6 + NSLAVES_L + 
      &                       KEEP(IXSZ)
-                 CALL CMUMPS_COMPUTE_SIZE_SCHUR_IN_FRONT ( 
+                 CALL CMUMPS_GET_SIZE_SCHUR_IN_FRONT ( 
      &                N, 
      &                NROW1,
      &                KEEP(116), 
@@ -474,7 +481,7 @@ C
               ELSE
                  NVSCHUR_K253 = 0
               ENDIF
-#if defined(BLR_MT)          
+#if ! defined(BLR_NOOPENMP)
 !$OMP PARALLEL
 #endif
               CALL CMUMPS_COMPRESS_CB_I(
@@ -492,7 +499,7 @@ C
      &          NFS4FATHER, NPIV1, NVSCHUR_K253, KEEP(1), 
      &          M_ARRAY,
      &          NELIM, NBROWSinF )
-#if defined(BLR_MT)
+#if ! defined(BLR_NOOPENMP)
 !$OMP END PARALLEL
 #endif
               IF (IFLAG.LT.0) GOTO 650
@@ -527,6 +534,7 @@ C
      &    NSTK_S, COMP, IFLAG, IERROR, PERM,
      &    IPOOL, LPOOL, LEAF, NBFIN, SLAVEF,
      &    OPASSW, OPELIW, ITLOC, RHS_MUMPS, FILS, DAD, PTRARW, PTRAIW,
+     &    PTR8ARR, NINCOLARR, NINROWARR, PTRDEBARR,
      &    INTARR,DBLARR,ICNTL,KEEP,KEEP8,DKEEP,ND,FRERE_STEPS,
      &    LPTRAR, NELT, FRTPTR, FRTELT, 
      &    ISTEP_TO_INIV2, TAB_POS_IN_PERE 
@@ -546,7 +554,7 @@ C
         IF (allocated(WORK)) DEALLOCATE(WORK)
       ENDIF
       IF (allocated(M_ARRAY)) DEALLOCATE(M_ARRAY)
-      IF (DYNAMIC) THEN
+      IF (DYNAMIC_ALLOC) THEN
        IF (allocated(UDYNAMIC)) DEALLOCATE(UDYNAMIC)
       ENDIF
       RETURN

@@ -1,12 +1,12 @@
 #
-#  This file is part of MUMPS 5.4.1, released
-#  on Tue Aug  3 09:49:43 UTC 2021
+#  This file is part of MUMPS 5.6.0, released
+#  on Wed Apr 19 15:50:57 UTC 2023
 #
 # These settings for a PC under Debian/linux with standard packages :
 # metis (parmetis), scotch (ptscotch), openmpi, gfortran
 
 # packages installation: 
-# apt-get install libmetis-dev libparmetis-dev libscotch-dev libptscotch-dev libatlas-base-dev openmpi-bin libopenmpi-dev liblapack-dev
+# apt-get install libmetis-dev libparmetis-dev libscotch-dev libptscotch-dev libatlas-base-dev openmpi-bin libopenmpi-dev liblapack-dev libscalapack-openmpi-dev
 
 # Begin orderings
 LSCOTCHDIR = /usr/lib
@@ -38,6 +38,12 @@ IORDERINGSC = $(IMETIS) $(IPORD) $(ISCOTCH)
 ################################################################################
 
 PLAT    =
+LIBEXT_SHARED  = .so
+SONAME = -soname
+FPIC_OPT = -fPIC
+# Adapt/uncomment RPATH_OPT to avoid modifying
+# LD_LIBRARY_PATH in case of shared libraries
+# RPATH_OPT = -Wl,-rpath,/path/to/MUMPS_x.y.z/lib/
 LIBEXT  = .a
 OUTC    = -o 
 OUTF    = -o 
@@ -62,6 +68,8 @@ CDEFS   = -DAdd_
 
 #Begin Optimized options
 OPTF    = -O -fopenmp
+# Use the line below if your version of gfortran is >= 10
+#OPTF    = -O -fopenmp -fallow-argument-mismatch
 OPTL    = -O -fopenmp
 OPTC    = -O -fopenmp
 #End Optimized options

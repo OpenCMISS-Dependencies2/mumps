@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.4.1, released
-C  on Tue Aug  3 09:49:43 UTC 2021
+C  This file is part of MUMPS 5.6.0, released
+C  on Wed Apr 19 15:50:57 UTC 2023
 C
 C
-C  Copyright 1991-2021 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -69,6 +69,7 @@ C
       INTEGER:: j1,NbRecords,NbSubRecords,size_array1,dummy,allocok,err
       INTEGER:: SIZE_GEST_L0FAC_ARRAY,
      &          SIZE_GEST_L0FAC_ARRAY_j1
+      INTEGER(4) :: I4
       INTEGER(8):: SIZE_VARIABLES_L0FAC_ARRAY,
      &             SIZE_VARIABLES_L0FAC_ARRAY_j1
       SIZE_GEST = 0
@@ -196,14 +197,14 @@ C
          endif
       ENDIF
       if(trim(mode).EQ."memory_save") then
-         NbSubRecords=int(SIZE_VARIABLES/huge(0))
+         NbSubRecords=int(SIZE_VARIABLES/huge(I4))
          IF(NbSubRecords.GT.0) then
             NbRecords=NbRecords+NbSubRecords
          ENDIF
       elseif(trim(mode).EQ."save") then
          size_written=size_written+SIZE_VARIABLES
      &        +int(SIZE_GEST,kind=8)
-#if !defined(MUMPS_F2003)
+#if defined(MUMPS_NOF2003)
          size_written=size_written
      &        +int(2*SIZE_INT*NbRecords,kind=8)
 #endif
@@ -211,7 +212,7 @@ C
          size_allocated=size_allocated+SIZE_VARIABLES
          size_read=size_read+SIZE_VARIABLES
      &        +int(SIZE_GEST,kind=8)
-#if !defined(MUMPS_F2003)
+#if defined(MUMPS_NOF2003)
          size_read=size_read
      &        +int(2*SIZE_INT*NbRecords,kind=8)
 #endif
@@ -219,7 +220,7 @@ C
       if(trim(mode).EQ."memory_save") then
          SIZE_VARIABLES=SIZE_VARIABLES+SIZE_VARIABLES_L0FAC_ARRAY
          SIZE_GEST=SIZE_GEST+SIZE_GEST_L0FAC_ARRAY
-#if !defined(MUMPS_F2003)
+#if defined(MUMPS_NOF2003)
          SIZE_GEST=SIZE_GEST+2*SIZE_INT*NbRecords
 #endif
       endif
@@ -354,7 +355,7 @@ C
      &             max(1_8,L0_OMP_FACTORS_1THREAD%LA)*SIZE_ARITH_DEP
         ENDIF
       ENDIF
-#if !defined(MUMPS_F2003)
+#if defined(MUMPS_NOF2003)
       IF (trim(mode).EQ."memory_save") THEN
         Local_SIZE_GEST = Local_SIZE_GEST+2*SIZE_INT*Local_NbRecords
       ELSE IF (trim(mode).EQ."save") THEN
