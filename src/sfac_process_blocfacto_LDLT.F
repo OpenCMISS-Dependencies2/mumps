@@ -1,9 +1,9 @@
 C
-C  This file is part of MUMPS 5.6.0, released
-C  on Wed Apr 19 15:50:57 UTC 2023
+C  This file is part of MUMPS 5.7.2, released
+C  on Mon Jun 17 08:20:17 UTC 2024
 C
 C
-C  Copyright 1991-2023 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
+C  Copyright 1991-2024 CERFACS, CNRS, ENS Lyon, INP Toulouse, Inria,
 C  Mumps Technologies, University of Bordeaux.
 C
 C  This version of MUMPS is provided to you free of charge. It is
@@ -70,7 +70,7 @@ C
       INTEGER COMM, MYID
       INTEGER PTLUST_S(KEEP(28)),
      &        ITLOC(N+KEEP(253)), FILS(N), DAD(KEEP(28)), ND(KEEP(28))
-      REAL :: RHS_MUMPS(KEEP(255))
+      REAL :: RHS_MUMPS(KEEP8(85))
       INTEGER(8), INTENT(IN) :: PTRAIW( LPTRAR ), PTRARW( LPTRAR )
       INTEGER(8), INTENT(IN) :: PTR8ARR(KEEP(193))
       INTEGER, INTENT(IN) :: NINCOLARR(KEEP(194))
@@ -186,8 +186,12 @@ C
       CALL MPI_UNPACK( BUFR, LBUFR_BYTES, POSITION, NSLAVES_TOT, 1,
      &                 MPI_INTEGER, COMM, IERR )
       KEEP_BEGS_BLR_LS  =.FALSE. 
+      NULLIFY(BEGS_BLR_LS)
       KEEP_BEGS_BLR_COL =.FALSE.
+      NULLIFY(BEGS_BLR_COL)
       KEEP_BLR_LS       =.FALSE.
+      NULLIFY(BLR_LS)
+      NULLIFY(BEGS_BLR_LM)
       IF ( LR_ACTIVATED ) THEN
         LA_BLOCFACTO = int(NPIV,8) * int(NPIV+NELIM,8)
         LD_BLOCFACTO = max(NPIV+NELIM,1)
@@ -314,7 +318,7 @@ C
      &      ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE.
      &               , LRGROUPS
      &        )
-          IF ( IFLAG .LT. 0 ) GOTO 600
+          IF ( IFLAG .LT. 0 ) GOTO 550
       ENDIF
       IF ( IW( PTRIST(STEP(INODE)) + 3 + KEEP(IXSZ)) .EQ. 0 ) THEN
        DO WHILE ( IW(PTRIST(STEP(INODE)) + XXNBPR) .NE. 0)
@@ -341,7 +345,7 @@ C
      &    ISTEP_TO_INIV2, TAB_POS_IN_PERE, .TRUE. 
      &               , LRGROUPS
      &      )
-        IF ( IFLAG .LT. 0 ) GOTO 600
+        IF ( IFLAG .LT. 0 ) GOTO 550
       END  DO
       ENDIF
         SET_IRECV = .TRUE.
@@ -564,8 +568,9 @@ C
           CALL GET_CUT(IW(IOLDPS+HS:IOLDPS+HS+NROW1-1), 0,
      &                    NROW1, LRGROUPS, NPARTSCB, 
      &                    NPARTSASS, BEGS_BLR_LS)
-              CALL REGROUPING2(BEGS_BLR_LS, NPARTSASS, 0, NPARTSCB,
-     &                        NROW1-0, KEEP(488), .TRUE., KEEP(472))
+              CALL REGROUPING2(BEGS_BLR_LS, NPARTSASS, NASS1, NPARTSCB,
+     &                        NROW1-0, KEEP(488), .TRUE., KEEP(472),
+     &                        NCOL1, KEEP(1))
              NB_BLR_LS = NPARTSCB
         ENDIF
         call MAX_CLUSTER(BEGS_BLR_LM,NB_BLR_LM+1,MAXI_CLUSTER_LM)
@@ -579,7 +584,8 @@ C
      &                    NPARTSASS_COL, BEGS_BLR_COL)
           CALL REGROUPING2(BEGS_BLR_COL, NPARTSASS_COL, NASS1, 
      &                     NPARTSCB_COL,
-     &                     NCOL1-NASS1, KEEP(488), .FALSE., KEEP(472))
+     &                     NCOL1-NASS1, KEEP(488), .FALSE., KEEP(472),
+     &                     NCOL1, KEEP(1))
           NB_BLR_COL = NPARTSCB_COL + NPARTSASS_COL
           IF (NPARTSASS_MASTER.NE.NPARTSASS_COL) THEN
              ALLOCATE(BEGS_BLR_COL_TMP(
@@ -616,8 +622,6 @@ C
             NB_BLR_COL   = size(BEGS_BLR_COL) - 1
             NPARTSCB_COL = NB_BLR_COL - NPARTSASS_COL 
          ENDIF
-         CALL MAX_CLUSTER(BEGS_BLR_COL,NB_BLR_COL,MAXI_CLUSTER_COL)
-         MAXI_CLUSTER = max(MAXI_CLUSTER,MAXI_CLUSTER_COL+NELIM)
         ELSE
          NULLIFY(BEGS_BLR_COL)
         ENDIF
@@ -916,6 +920,13 @@ C
      &                LA-LRLUS,0_8,-LA_BLOCFACTO,KEEP,KEEP8,LRLUS)
       ENDIF 
       ENDIF 
+      IF (LR_ACTIVATED) THEN
+        IF (allocated(RWORK))  DEALLOCATE(RWORK)
+        IF (allocated(WORK)) DEALLOCATE(WORK)
+        IF (allocated(TAU)) DEALLOCATE(TAU)
+        IF (allocated(JPVT)) DEALLOCATE(JPVT)
+        IF (allocated(BLOCKLR)) DEALLOCATE(BLOCKLR)
+      ENDIF
       IF ( NSLAVES_FOLLOW .NE. 0 .and. NPIV .NE. 0 ) THEN
          IPOSK = NPIV1 + 1
          JPOSK = NCOL1 - NROW1 + 1
@@ -992,14 +1003,15 @@ C
      &             IW(IOLDPS+6+KEEP(IXSZ)).EQ.1 ) THEN
                 IW(IOLDPS+6+KEEP(IXSZ)) = huge(IW(IOLDPS+6+KEEP(IXSZ)))
               ENDIF
-              IF ( IFLAG .LT. 0 ) GOTO 600
+              IF ( IFLAG .LT. 0 ) GOTO 550
             END IF
            END DO
            IF ( IERR .eq. -2 ) THEN
-              IF (LP > 0 ) WRITE(LP,*) MYID,
+             IF (LP > 0 ) THEN 
+               WRITE(LP,*) MYID,
      &": FAILURE, SEND BUFFER TOO SMALL DURING
      & SMUMPS_PROCESS_SYM_BLOCFACTO"
-             WRITE(LP,*) "NPIV=", NPIV, "NROW1=",NROW1
+             ENDIF
              IFLAG = -17
              IERROR = 5 * KEEP(34) + NPIV * NROW1 * KEEP(35)
              GOTO 700
@@ -1117,6 +1129,19 @@ C
               ENDIF
               BEGS_BLR_COL(1+NPARTSASS_COL) = 
      &               BEGS_BLR_COL(1+NPARTSASS_COL) - NELIM
+              CALL MAX_CLUSTER(BEGS_BLR_COL,NB_BLR_COL,MAXI_CLUSTER_COL)
+              MAXI_CLUSTER=max(MAXI_CLUSTER_LS, MAXI_CLUSTER_COL)
+              ALLOCATE(BLOCKLR(MAXI_CLUSTER, OMP_NUM*MAXI_CLUSTER),
+     &                  RWORK(2*MAXI_CLUSTER*OMP_NUM), 
+     &                  TAU(MAXI_CLUSTER*OMP_NUM),
+     &                  JPVT(MAXI_CLUSTER*OMP_NUM), 
+     &                  WORK(LWORK*OMP_NUM),
+     &                  stat=allocok)
+              IF (allocok > 0 ) THEN
+                IFLAG  = -13
+                IERROR = OMP_NUM*(LWORK + MAXI_CLUSTER*(MAXI_CLUSTER+4))
+                GOTO 700
+              ENDIF
               NBROWSinF    = 0
               NVSCHUR_K253 =  0
               IF ( (KEEP(219).NE.0).AND.(KEEP(50).EQ.2).AND.
@@ -1208,6 +1233,10 @@ C
      &               , LRGROUPS
      &      )
         ENDIF
+        GOTO 550
+ 700    CONTINUE
+        CALL SMUMPS_BDC_ERROR( MYID, SLAVEF, COMM, KEEP )
+ 550    CONTINUE
         IF (LR_ACTIVATED) THEN
           IF (allocated(RWORK))  DEALLOCATE(RWORK)
           IF (allocated(WORK)) DEALLOCATE(WORK)
@@ -1219,8 +1248,10 @@ C
               IF (associated(BEGS_BLR_LS)) DEALLOCATE(BEGS_BLR_LS)
             ENDIF
             IF (.NOT.KEEP_BLR_LS) THEN
+             IF (associated(BLR_LS)) THEN
               CALL DEALLOC_BLR_PANEL(BLR_LS, NB_BLR_LS, KEEP8, KEEP(34))
-              IF (associated(BLR_LS)) DEALLOCATE(BLR_LS)
+              DEALLOCATE(BLR_LS)
+             ENDIF
             ENDIF
             IF (associated(BEGS_BLR_LM)) DEALLOCATE(BEGS_BLR_LM)
             IF (.NOT.KEEP_BEGS_BLR_COL) THEN
@@ -1232,9 +1263,5 @@ C
             ENDIF
           ENDIF
         ENDIF
- 600  CONTINUE
-      RETURN
- 700  CONTINUE
-      CALL SMUMPS_BDC_ERROR( MYID, SLAVEF, COMM, KEEP )
       RETURN
       END SUBROUTINE SMUMPS_PROCESS_SYM_BLOCFACTO

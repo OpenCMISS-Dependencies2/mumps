@@ -7,6 +7,8 @@
 # RANLIB must be passed to make.
 #
 
+.PHONY: clean realclean
+
 INCLUDES = -I../include
 
 COPTIONS = $(INCLUDES) $(CFLAGS) $(OPTFLAGS) $(FPIC)

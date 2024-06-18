@@ -1,7 +1,7 @@
 /*
  *
- *  This file is part of MUMPS 5.6.0, released
- *  on Wed Apr 19 15:50:57 UTC 2023
+ *  This file is part of MUMPS 5.7.2, released
+ *  on Mon Jun 17 08:20:17 UTC 2024
  *
  */
 /* Example program using the C interface to the 
@@ -48,7 +48,7 @@ int main(int argc, char ** argv)
   double rhs[2];
 
 /* When compiling with -DINTSIZE64, MUMPS_INT is 64-bit but MPI
-   ilp64 versions may still require standard int for C interface. */
+   ilp64 versions normally still require standard int for C */
 /* MUMPS_INT myid, ierr; */
   int myid, ierr;
 

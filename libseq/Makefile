@@ -1,6 +1,6 @@
 #
-#  This file is part of MUMPS 5.6.0, released
-#  on Wed Apr 19 15:50:57 UTC 2023
+#  This file is part of MUMPS 5.7.2, released
+#  on Mon Jun 17 08:20:17 UTC 2024
 #
 all: staticlibmpiseq
 
@@ -19,7 +19,7 @@ sharedlibmpiseq:
 	$(MAKE) FPIC="$(FPIC_OPT)" libmpiseq$(PLAT)$(LIBEXT_SHARED)
 
 libmpiseq$(PLAT)$(LIBEXT_SHARED): mpi.o mpic.o elapse.o
-	$(FC) -shared mpi.o mpic.o elapse.o -o libmpiseq$(PLAT)$(LIBEXT_SHARED)
+	$(FC) $(SHARED_OPT) mpi.o mpic.o elapse.o -o libmpiseq$(PLAT)$(LIBEXT_SHARED)
 
 .f.o:
 	$(FC) $(OPTF) $(FPIC)              -c $*.f $(OUTF)$*.o
